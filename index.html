@@ -686,5 +686,171 @@ $('b3d').addEventListener('click',()=>{if(!S.grid)return;c3d.toBlob(b=>download(
 /* ===== Boot ===== */
 (function boot(){const{parsed,prj}=makeSampleDEM();setDataset(parsed,prj,'elevation (sample).asc','')})();
 </script>
-</body>
+<!-- ===== MAP TOOL START ===== -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+<style>
+  .mt-wrap { position: relative; width: 100%; margin: 16px 0; font-family: sans-serif; }
+  #mt-map { width: 100%; height: 500px; border-radius: 6px; overflow: hidden; }
+  .mt-controls { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  .mt-controls button { padding: 6px 10px; border: 1px solid #ccc; background: #fff; border-radius: 4px; cursor: pointer; }
+  .mt-controls button.active { background: #007bff; color: #fff; border-color: #007bff; }
+  #mt-result { margin-top: 8px; padding: 8px 12px; background: #f7f7f7; border-radius: 6px; font-size: 14px; }
+
+  .mt-layers {
+    position: absolute; top: 10px; right: 10px; z-index: 1000;
+    background: #fff; border-radius: 6px; box-shadow: 0 1px 5px rgba(0,0,0,.4);
+    padding: 6px 10px 8px; font: 13px/1.4 sans-serif; user-select: none;
+  }
+  .mt-layers-handle {
+    cursor: move; font-weight: 600; padding: 2px 0 6px; color: #333;
+    border-bottom: 1px solid #eee; margin-bottom: 6px;
+  }
+  .mt-layers label { display: block; cursor: pointer; padding: 2px 0; }
+  .mt-layers.dragging { opacity: 0.9; box-shadow: 0 4px 14px rgba(0,0,0,.4); }
+
+  .leaflet-container img { max-width: none !important; }
+</style>
+
+<div class="mt-wrap">
+  <div class="mt-controls">
+    <button id="mt-lockBtn">🔒 Lock map</button>
+    <button id="mt-areaBtn">Area mode</button>
+    <button id="mt-distBtn">Distance mode</button>
+    <button id="mt-clearBtn">Clear</button>
+  </div>
+  <div id="mt-map"></div>
+
+  <div id="mt-layers" class="mt-layers">
+    <div id="mt-layers-handle" class="mt-layers-handle">⋮⋮ Layers</div>
+    <label><input type="radio" name="mt-base" value="streets" checked> Streets</label>
+    <label><input type="radio" name="mt-base" value="topo"> Topographic</label>
+    <label><input type="radio" name="mt-base" value="satellite"> Satellite</label>
+  </div>
+
+  <div id="mt-result">Click map to add points.</div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+<script>
+(function () {
+  if (!window.L || !window.turf) { console.error('Map tool: libraries failed to load.'); return; }
+  const mapEl = document.getElementById('mt-map');
+  if (!mapEl) return;
+
+  const map = L.map(mapEl).setView([40.7128, -74.0060], 13);
+
+  const baseLayers = {
+    streets: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      { maxZoom: 19, attribution: '&copy; OpenStreetMap' }),
+    topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+      { maxZoom: 17, attribution: '&copy; OpenTopoMap (CC-BY-SA)' }),
+    satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      { maxZoom: 19, attribution: 'Tiles &copy; Esri' })
+  };
+  let currentBase = baseLayers.streets.addTo(map);
+
+  document.querySelectorAll('input[name="mt-base"]').forEach(input => {
+    input.addEventListener('change', (e) => {
+      if (!e.target.checked) return;
+      map.removeLayer(currentBase);
+      currentBase = baseLayers[e.target.value].addTo(map);
+    });
+  });
+
+  // Draggable layers panel
+  (function makeDraggable(panel, handle) {
+    let dragging = false, startX = 0, startY = 0, startLeft = 0, startTop = 0;
+    handle.addEventListener('pointerdown', (e) => {
+      dragging = true;
+      panel.classList.add('dragging');
+      handle.setPointerCapture(e.pointerId);
+      const rect = panel.getBoundingClientRect();
+      const parentRect = panel.offsetParent.getBoundingClientRect();
+      startLeft = rect.left - parentRect.left;
+      startTop  = rect.top  - parentRect.top;
+      panel.style.left = startLeft + 'px';
+      panel.style.top  = startTop + 'px';
+      panel.style.right = 'auto';
+      startX = e.clientX; startY = e.clientY;
+    });
+    handle.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      panel.style.left = (startLeft + e.clientX - startX) + 'px';
+      panel.style.top  = (startTop  + e.clientY - startY) + 'px';
+    });
+    handle.addEventListener('pointerup', (e) => {
+      dragging = false;
+      panel.classList.remove('dragging');
+      handle.releasePointerCapture(e.pointerId);
+    });
+  })(document.getElementById('mt-layers'), document.getElementById('mt-layers-handle'));
+
+  // Measure / draw tool
+  let locked = false, mode = 'area', points = [], markers = [], shape = null;
+  const lockBtn  = document.getElementById('mt-lockBtn');
+  const areaBtn  = document.getElementById('mt-areaBtn');
+  const distBtn  = document.getElementById('mt-distBtn');
+  const clearBtn = document.getElementById('mt-clearBtn');
+  const result   = document.getElementById('mt-result');
+
+  function setLocked(value) {
+    locked = value;
+    [map.dragging, map.touchZoom, map.doubleClickZoom, map.scrollWheelZoom, map.boxZoom, map.keyboard]
+      .forEach(m => value ? m.disable() : m.enable());
+    lockBtn.textContent = value ? '🔓 Unlock map' : '🔒 Lock map';
+    lockBtn.classList.toggle('active', value);
+  }
+  function setMode(newMode) {
+    mode = newMode;
+    areaBtn.classList.toggle('active', mode === 'area');
+    distBtn.classList.toggle('active', mode === 'distance');
+    clearAll();
+    result.textContent = mode === 'area'
+      ? 'Area mode: click up to 6 points to outline an area.'
+      : 'Distance mode: click 2 points to measure.';
+  }
+  function clearAll() {
+    markers.forEach(m => map.removeLayer(m)); markers = []; points = [];
+    if (shape) { map.removeLayer(shape); shape = null; }
+    result.textContent = 'Cleared. Click map to add points.';
+  }
+  function updateShape() {
+    if (shape) { map.removeLayer(shape); shape = null; }
+    if (mode === 'distance') {
+      if (points.length === 2) {
+        shape = L.polyline(points, { color: 'blue' }).addTo(map);
+        const from = turf.point([points[0].lng, points[0].lat]);
+        const to   = turf.point([points[1].lng, points[1].lat]);
+        const km = turf.distance(from, to, { units: 'kilometers' });
+        result.textContent = 'Distance: ' + km.toFixed(3) + ' km (' + (km*0.621371).toFixed(3) + ' mi)';
+      } else { result.textContent = 'Distance mode: ' + points.length + '/2 points.'; }
+      return;
+    }
+    if (points.length >= 3) {
+      const latlngs = points.map(p => [p.lat, p.lng]);
+      shape = L.polygon(latlngs, { color: 'green', fillOpacity: 0.2 }).addTo(map);
+      const coords = points.map(p => [p.lng, p.lat]); coords.push(coords[0]);
+      const sqMeters = turf.area(turf.polygon([coords]));
+      result.textContent = 'Area: ' + (sqMeters/1e6).toFixed(4) + ' km² (' + (sqMeters/4046.8564224).toFixed(2) + ' acres) — ' + points.length + '/6 points';
+    } else { result.textContent = 'Area mode: ' + points.length + '/6 points. Need at least 3.'; }
+  }
+  map.on('click', (e) => {
+    const max = mode === 'area' ? 6 : 2;
+    if (points.length >= max) { result.textContent = 'Maximum ' + max + ' points for ' + mode + ' mode.'; return; }
+    points.push(e.latlng);
+    markers.push(L.marker(e.latlng).addTo(map));
+    updateShape();
+  });
+  lockBtn.onclick  = () => setLocked(!locked);
+  areaBtn.onclick  = () => setMode('area');
+  distBtn.onclick  = () => setMode('distance');
+  clearBtn.onclick = clearAll;
+
+  setMode('area');
+  setLocked(true);
+})();
+</script>
+<!-- ===== MAP TOOL END ===== --></body>
 </html>
