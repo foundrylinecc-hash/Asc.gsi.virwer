@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ASC / PRJ Geospatial Viewer</title>
+<style>
+:root{--bg:#0b1220;--p1:#151f33;--p2:#1c2942;--ln:#2b3b58;--tx:#e6edf7;--mu:#8fa3c0;--ac:#38bdf8;--ac2:#22d3ee;--gd:#34d399}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--tx);display:flex;flex-direction:column;height:100vh;overflow:hidden;font-size:13px}
+header{display:flex;align-items:center;gap:14px;padding:10px 16px;background:linear-gradient(90deg,#0f172a,#152238);border-bottom:1px solid var(--ln);flex:0 0 auto}
+header h1{font-size:15px;margin:0;font-weight:650;letter-spacing:.2px}
+header .badge{font-size:11px;padding:3px 9px;border-radius:99px;background:var(--p2);border:1px solid var(--ln);color:var(--mu)}
+header .badge.ok{color:var(--gd);border-color:#1d5c48}
+#layout{display:flex;flex:1 1 auto;min-height:0}
+#sidebar{width:330px;flex:0 0 330px;background:var(--p1);border-right:1px solid var(--ln);overflow-y:auto;padding:14px}
+#sidebar::-webkit-scrollbar{width:8px}
+#sidebar::-webkit-scrollbar-thumb{background:#2b3b58;border-radius:4px}
+.card{background:var(--p2);border:1px solid var(--ln);border-radius:10px;padding:11px 12px;margin-bottom:12px}
+.card h3{margin:0 0 9px;font-size:11px;letter-spacing:.9px;text-transform:uppercase;color:var(--mu);font-weight:700}
+.row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.row:last-child{margin-bottom:0}
+input[type=file]{display:none}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:7px 11px;border-radius:8px;border:1px solid var(--ln);background:#22304a;color:var(--tx);cursor:pointer;font-size:12px;font-weight:550;transition:.12s;user-select:none;white-space:nowrap}
+.btn:hover{background:#2c3d5c;border-color:#3d5478}
+.btn.primary{background:linear-gradient(135deg,#0ea5e9,#0284c7);border-color:#0ea5e9;color:#001}
+.btn.primary:hover{filter:brightness(1.12)}
+.btn.full{width:100%}
+select{background:#0f1a2e;color:var(--tx);border:1px solid var(--ln);border-radius:7px;padding:6px 8px;font-size:12px;width:100%;outline:none}
+input[type=range]{width:100%;accent-color:var(--ac)}
+input[type=checkbox]{accent-color:var(--ac)}
+#drop{border:1.5px dashed #35507a;border-radius:10px;padding:16px 10px;text-align:center;color:var(--mu);font-size:12px;margin-bottom:10px;transition:.15s;cursor:pointer}
+#drop.over{background:#16233a;border-color:var(--ac);color:var(--ac)}
+.kv{display:flex;justify-content:space-between;gap:10px;padding:3px 0;font-size:12px}
+.kv span:first-child{color:var(--mu)}
+.kv span:last-child{text-align:right;font-variant-numeric:tabular-nums;word-break:break-word}
+.kv.big span:last-child{color:var(--ac2);font-weight:600}
+.divider{height:1px;background:var(--ln);margin:8px 0}
+#main{flex:1 1 auto;display:flex;flex-direction:column;min-width:0;min-height:0}
+nav.tabs{display:flex;gap:2px;padding:8px 12px 0;background:#0f172a;border-bottom:1px solid var(--ln);flex:0 0 auto;overflow-x:auto}
+.tab-btn{padding:8px 15px;border:1px solid transparent;border-bottom:none;border-radius:8px 8px 0 0;background:transparent;color:var(--mu);cursor:pointer;font-size:12.5px;font-weight:600;white-space:nowrap}
+.tab-btn:hover{color:var(--tx);background:#16223a}
+.tab-btn.active{background:var(--p1);color:var(--ac);border-color:var(--ln)}
+.tab-panel{display:none;flex:1 1 auto;min-height:0;padding:12px;overflow:auto}
+.tab-panel.active{display:flex;flex-direction:column}
+.toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;background:var(--p1);border:1px solid var(--ln);border-radius:10px;padding:9px 12px;margin-bottom:10px;flex:0 0 auto}
+.toolbar .grp{display:flex;align-items:center;gap:7px}
+.toolbar .grp label{color:var(--mu);font-size:11.5px;white-space:nowrap}
+.toolbar select{width:auto;min-width:110px}
+.toolbar input[type=range]{width:110px}
+.stage{flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;background:#070d18;border:1px solid var(--ln);border-radius:10px;padding:10px;overflow:hidden;position:relative}
+.stage canvas{max-width:100%;max-height:100%;display:block;border-radius:5px}
+#c3d{width:100%;height:100%;cursor:grab;touch-action:none}
+#c3d:active{cursor:grabbing}
+.colorbar{display:flex;align-items:center;gap:9px;margin-top:9px;flex:0 0 auto}
+.colorbar .bar{flex:1 1 auto;height:13px;border-radius:4px;border:1px solid var(--ln)}
+.colorbar .end{font-size:11px;color:var(--mu);font-variant-numeric:tabular-nums}
+#statsTable{width:100%;border-collapse:collapse;font-size:12.5px}
+#statsTable td{padding:6px 9px;border-bottom:1px solid var(--ln)}
+#statsTable td:first-child{color:var(--mu)}
+#statsTable td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.hint{color:var(--mu);font-size:11.5px;margin-top:7px;line-height:1.5}
+.profile-row{display:flex;gap:10px;align-items:center;flex:0 0 auto;margin-bottom:8px}
+.profile-row label{color:var(--mu);font-size:11.5px;white-space:nowrap}
+#spinner{position:fixed;inset:0;background:rgba(6,10,20,.72);display:none;align-items:center;justify-content:center;z-index:999;color:var(--ac);font-size:14px;font-weight:600;letter-spacing:.4px}
+#spinner.on{display:flex}
+#err{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:#7f1d1d;color:#fff;padding:9px 16px;border-radius:8px;font-size:12.5px;display:none;z-index:1000;max-width:80vw}
+</style>
+</head><body>
+<header>
+<h1>🌍 ASC / PRJ Geospatial Viewer</h1>
+<span class="badge" id="fileBadge">No dataset loaded</span>
+<span class="badge" id="crsBadge" style="display:none"></span>
+</header>
+<div id="layout">
+<aside id="sidebar">
+<div class="card">
+<h3>Load Data</h3>
+<div id="drop"><strong>Drop .asc / .prj files here</strong><br><span style="font-size:11px">or use the buttons below</span></div>
+<input type="file" id="fAsc" accept=".asc,.txt,.grd,.dem">
+<input type="file" id="fPrj" accept=".prj,.wkt,.txt">
+<div class="row">
+<button class="btn full" id="bAsc">📂 Choose .asc</button>
+<button class="btn full" id="bPrj">📐 Choose .prj</button>
+</div>
+<button class="btn primary full" id="bSample" style="margin-top:4px">🏔️ Load Sample DEM</button>
+</div>
+<div class="card" id="metaCard" style="display:none">
+<h3>Projection / Metadata</h3>
+<div class="kv"><span>CRS</span><span id="mCrs">—</span></div>
+<div class="kv"><span>Datum</span><span id="mDatum">—</span></div>
+<div class="kv"><span>Projection</span><span id="mProj">—</span></div>
+<div class="kv"><span>Units</span><span id="mUnits">—</span></div>
+<div class="divider"></div>
+<div class="kv"><span>Grid</span><span id="mGrid">—</span></div>
+<div class="kv"><span>Cell size</span><span id="mCell">—</span></div>
+<div class="kv"><span>Ground size</span><span id="mGround">—</span></div>
+<div class="kv"><span>Area</span><span id="mArea">—</span></div>
+<div class="divider"></div>
+<div class="kv"><span>Min X (W)</span><span id="mMinX">—</span></div>
+<div class="kv"><span>Max X (E)</span><span id="mMaxX">—</span></div>
+<div class="kv"><span>Min Y (S)</span><span id="mMinY">—</span></div>
+<div class="kv"><span>Max Y (N)</span><span id="mMaxY">—</span></div>
+</div>
+<div class="card" id="statCard" style="display:none">
+<h3>Elevation Statistics</h3>
+<div class="kv big"><span>Minimum</span><span id="sMin">—</span></div>
+<div class="kv big"><span>Maximum</span><span id="sMax">—</span></div>
+<div class="kv"><span>Mean</span><span id="sMean">—</span></div>
+<div class="kv"><span>Median</span><span id="sMed">—</span></div>
+<div class="kv"><span>Std deviation</span><span id="sStd">—</span></div>
+<div class="kv"><span>Relief</span><span id="sRel">—</span></div>
+<div class="kv"><span>Valid cells</span><span id="sValid">—</span></div>
+<div class="kv"><span>NoData cells</span><span id="sNoData">—</span></div>
+</div>
+<div class="card" id="expCard" style="display:none">
+<h3>Export</h3>
+<button class="btn full" id="bPng" style="margin-bottom:7px">🖼️ Current map PNG + world file</button>
+<button class="btn full" id="bCsv" style="margin-bottom:7px">📊 Statistics CSV</button>
+<button class="btn full" id="b3d">🧊 3D view PNG</button>
+<p class="hint">PNG export includes a companion <code>.pgw</code> world file so the image is georeferenced in QGIS / ArcGIS.</p>
+</div>
+</aside>
+<main id="main">
+<nav class="tabs">
+<button class="tab-btn active" data-tab="tab-map">🗺️ 2D Map</button>
+<button class="tab-btn" data-tab="tab-3d">🧊 3D Surface</button>
+<button class="tab-btn" data-tab="tab-profile">📈 Profile</button>
+<button class="tab-btn" data-tab="tab-stats">📋 Statistics</button>
+</nav>
+<section class="tab-panel active" id="tab-map">
+<div class="toolbar">
+<div class="grp"><label>Layer</label><select id="selLayer">
+<option value="elevation">Elevation</option>
+<option value="hillshade">Hillshade</option>
+<option value="slope">Slope</option>
+<option value="aspect">Aspect</option>
+</select></div>
+<div class="grp"><label>Colormap</label><select id="selCmap">
+<option value="terrain">Terrain</option>
+<option value="viridis">Viridis</option>
+<option value="magma">Magma</option>
+<option value="gray">Grayscale</option>
+</select></div>
+<div class="grp"><label>Sun az.</label><input type="range" id="rAz" min="0" max="360" value="315" step="5"><span id="vAz" style="font-size:11px;color:var(--mu);width:34px">315°</span></div>
+<div class="grp"><label>Sun alt.</label><input type="range" id="rAlt" min="5" max="85" value="45" step="1"><span id="vAlt" style="font-size:11px;color:var(--mu);width:34px">45°</span></div>
+<div class="grp"><label><input type="checkbox" id="cbBlend" checked> Blend relief</label></div>
+<div class="grp"><label><input type="checkbox" id="cbCont"> Contours</label><input type="range" id="rCont" min="1" max="100" value="20" step="1" style="width:80px"><span id="vCont" style="font-size:11px;color:var(--mu);width:42px">20 m</span></div>
+</div>
+<div class="stage"><canvas id="cMap"></canvas></div>
+<div class="colorbar">
+<span class="end" id="cbLo">—</span>
+<div class="bar" id="cbBar"></div>
+<span class="end" id="cbHi">—</span>
+<span class="end" id="cbUnit" style="min-width:70px;text-align:right"></span>
+</div>
+<p class="hint">💡 Click anywhere on the map to move the profile transect to that row.</p>
+</section>
+<section class="tab-panel" id="tab-3d">
+<div class="toolbar">
+<div class="grp"><label>Vertical exaggeration</label><input type="range" id="rVex" min="0.2" max="5" value="1.4" step="0.1" style="width:130px"><span id="vVex" style="font-size:11px;color:var(--mu);width:34px">1.4×</span></div>
+<div class="grp"><label>Colormap</label><select id="selCmap3d">
+<option value="terrain">Terrain</option>
+<option value="viridis">Viridis</option>
+<option value="magma">Magma</option>
+<option value="gray">Grayscale</option>
+</select></div>
+<button class="btn" id="bReset3d">↺ Reset view</button>
+<span class="hint" style="margin:0">Drag to rotate · scroll to zoom</span>
+</div>
+<div class="stage" style="padding:0"><canvas id="c3d"></canvas></div>
+</section>
+<section class="tab-panel" id="tab-profile">
+<div class="profile-row">
+<label>Transect row</label>
+<input type="range" id="rRow" min="0" max="100" value="50" style="flex:1 1 auto">
+<span id="vRow" style="font-size:12px;color:var(--ac);min-width:150px;text-align:right">—</span>
+</div>
+<div class="stage" style="flex:1 1 auto;padding:0"><canvas id="cProfile" style="width:100%;height:100%"></canvas></div>
+<p class="hint">West → East elevation profile across the selected grid row.</p>
+</section>
+<section class="tab-panel" id="tab-stats">
+<div class="card" style="max-width:760px">
+<h3>Full Report</h3>
+<table id="statsTable"></table>
+</div>
+</section>
+</main>
+</div>
+<div id="spinner">⏳ Processing…</div>
+<div id="err"></div><script>
+/* ===== Helpers ===== */
+const $=id=>document.getElementById(id);
+const clamp=(v,a,b)=>v<a?a:(v>b?b:v);
+const fmt=(v,d=2)=>(v===null||v===undefined||Number.isNaN(v))?'—':Number(v).toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d});
+const fmtInt=v=>(v===null||v===undefined||Number.isNaN(v))?'—':Number(v).toLocaleString();
+function showErr(msg){const e=$('err');e.textContent=msg;e.style.display='block';clearTimeout(e._t);e._t=setTimeout(()=>e.style.display='none',6000)}
+function busy(on){$('spinner').classList.toggle('on',on)}
+
+/* ===== Colormaps ===== */
+const CMAP_STOPS={
+terrain:[[0,36,70,128],[0.12,30,122,140],[0.25,70,160,92],[0.4,152,192,104],[0.55,222,212,142],[0.7,190,150,92],[0.85,152,112,86],[1,250,250,252]],
+viridis:[[0,68,1,84],[0.25,59,82,139],[0.5,33,145,140],[0.75,94,201,98],[1,253,231,37]],
+magma:[[0,0,0,4],[0.25,81,18,124],[0.5,183,55,121],[0.75,252,137,97],[1,252,253,191]],
+gray:[[0,0,0,0],[1,255,255,255]]
+};
+function makeLUT(stops){const lut=new Uint8Array(256*3);for(let i=0;i<256;i++){const t=i/255;let a=stops[0],b=stops[stops.length-1];for(let s=0;s<stops.length-1;s++){if(t>=stops[s][0]&&t<=stops[s+1][0]){a=stops[s];b=stops[s+1];break}}const span=(b[0]-a[0])||1;const f=clamp((t-a[0])/span,0,1);lut[i*3]=Math.round(a[1]+f*(b[1]-a[1]));lut[i*3+1]=Math.round(a[2]+f*(b[2]-a[2]));lut[i*3+2]=Math.round(a[3]+f*(b[3]-a[3]))}return lut}
+const LUTS={};for(const k in CMAP_STOPS)LUTS[k]=makeLUT(CMAP_STOPS[k]);
+function cmapRGB(name,t){const lut=LUTS[name]||LUTS.terrain;const i=clamp(Math.round(t*255),0,255)*3;return[lut[i],lut[i+1],lut[i+2]]}
+function hsv2rgb(h,s,v){h=((h%360)+360)%360;const c=v*s,x=c*(1-Math.abs((h/60)%2-1)),m=v-c;let r,g,b;if(h<60){r=c;g=x;b=0}else if(h<120){r=x;g=c;b=0}else if(h<180){r=0;g=c;b=x}else if(h<240){r=0;g=x;b=c}else if(h<300){r=x;g=0;b=c}else{r=c;g=0;b=x}return[Math.round((r+m)*255),Math.round((g+m)*255),Math.round((b+m)*255)]}
+
+/* ===== Parsers ===== */
+const HEADER_KEYS=new Set(['ncols','nrows','xllcorner','yllcorner','xllcenter','yllcenter','cellsize','dx','dy','nodata_value','nodata','byteorder']);
+function parseASC(text){
+const lines=text.split(/\r?\n/);const header={};let dataStart=0;
+for(let i=0;i<lines.length;i++){const t=lines[i].trim();if(!t)continue;const parts=t.split(/\s+/);const key=parts[0].toLowerCase();const val=parseFloat(parts[1]);if(HEADER_KEYS.has(key)&&parts.length>=2&&isFinite(val)){if(key!=='byteorder')header[key]=val;dataStart=i+1}else break}
+const ncols=header.ncols|0,nrows=header.nrows|0;if(!ncols||!nrows)throw new Error('ASC header is missing ncols / nrows.');
+const cellX=header.cellsize??header.dx??1,cellY=header.cellsize??header.dy??1;
+const usesCenter=(header.xllcorner===undefined);let xll=header.xllcorner??header.xllcenter??0;let yll=header.yllcorner??header.yllcenter??0;
+if(usesCenter){xll-=cellX/2;yll-=cellY/2}
+const nodata=header.nodata_value??header.nodata??-9999;
+const rest=lines.slice(dataStart).join(' ');const toks=rest.split(/[\s,]+/);
+const grid=new Float32Array(nrows*ncols);let k=0;
+for(let i=0;i<toks.length&&k<grid.length;i++){const s=toks[i];if(!s)continue;const v=parseFloat(s);grid[k++]=(Number.isNaN(v)||Math.abs(v-nodata)<1e-3)?NaN:v}
+while(k<grid.length)grid[k++]=NaN;
+return{grid,nrows,ncols,cellX,cellY,xll,yll,nodata,header}
+}
+function parsePRJ(text){
+const info={raw:text.trim(),name:'Unknown',datum:'Unknown',units:'Unknown',projection:'Unknown',params:{},isProjected:false,unitScale:1};
+let m=text.match(/PROJCS\s*\[\s*"([^"]+)"/i);if(m){info.name=m[1];info.isProjected=true}else{m=text.match(/GEOGCS\s*\[\s*"([^"]+)"/i);if(m)info.name=m[1]}
+m=text.match(/DATUM\s*\[\s*"([^"]+)"/i);if(m)info.datum=m[1];
+m=text.match(/PROJECTION\s*\[\s*"([^"]+)"/i);if(m)info.projection=m[1];
+const unitMatches=[...text.matchAll(/UNIT\s*\[\s*"([^"]+)"\s*,\s*([-\d.eE+]+)\s*\]/gi)];
+if(unitMatches.length){const last=unitMatches[unitMatches.length-1];info.units=last[1];info.unitScale=parseFloat(last[2])||1}
+const pnames={latitude_of_origin:'Latitude of origin',central_meridian:'Central meridian',scale_factor:'Scale factor',false_easting:'False easting',false_northing:'False northing',standard_parallel_1:'Standard parallel 1',standard_parallel_2:'Standard parallel 2'};
+for(const mm of text.matchAll(/PARAMETER\s*\[\s*"([^"]+)"\s*,\s*([-\d.eE+]+)\s*\]/gi)){const key=mm[1].toLowerCase();info.params[pnames[key]||mm[1]]=parseFloat(mm[2])}
+return info
+}/* ===== Raster utilities ===== */
+function downsample(grid,nrows,ncols,step){
+if(step<=1)return{data:grid,nrows,ncols};
+const oh=Math.ceil(nrows/step),ow=Math.ceil(ncols/step);const out=new Float32Array(oh*ow);
+for(let y=0;y<oh;y++){const y0=y*step,y1=Math.min(y0+step,nrows);
+for(let x=0;x<ow;x++){const x0=x*step,x1=Math.min(x0+step,ncols);let sum=0,n=0;
+for(let j=y0;j<y1;j++){const base=j*ncols;for(let i=x0;i<x1;i++){const v=grid[base+i];if(!Number.isNaN(v)){sum+=v;n++}}}
+out[y*ow+x]=n?sum/n:NaN}}
+return{data:out,nrows:oh,ncols:ow}
+}
+function fillNaN(grid){
+const out=Float32Array.from(grid);let sum=0,n=0;
+for(let i=0;i<out.length;i++)if(!Number.isNaN(out[i])){sum+=out[i];n++}
+const mean=n?sum/n:0;
+for(let i=0;i<out.length;i++)if(Number.isNaN(out[i]))out[i]=mean;
+return out
+}
+function computeTerrain(grid,nrows,ncols,cellX,cellY,sunAzDeg,sunAltDeg){
+const z=fillNaN(grid);
+const slope=new Float32Array(nrows*ncols),aspect=new Float32Array(nrows*ncols),shade=new Float32Array(nrows*ncols);
+const at=(y,x)=>z[clamp(y,0,nrows-1)*ncols+clamp(x,0,ncols-1)];
+const sunAz=sunAzDeg*Math.PI/180,sunZen=Math.PI/2-sunAltDeg*Math.PI/180;
+const cosZ=Math.cos(sunZen),sinZ=Math.sin(sunZen);
+for(let y=0;y<nrows;y++){for(let x=0;x<ncols;x++){
+const a=at(y-1,x-1),b=at(y-1,x),c=at(y-1,x+1),d=at(y,x-1),f=at(y,x+1),g=at(y+1,x-1),h=at(y+1,x),i=at(y+1,x+1);
+const dzdx=((c+2*f+i)-(a+2*d+g))/(8*cellX);
+const dzdy=((a+2*b+c)-(g+2*h+i))/(8*cellY);
+const sl=Math.atan(Math.hypot(dzdx,dzdy));const idx=y*ncols+x;
+slope[idx]=sl*180/Math.PI;
+let asp=Math.atan2(-dzdx,-dzdy);if(asp<0)asp+=2*Math.PI;aspect[idx]=asp*180/Math.PI;
+const v=cosZ*Math.cos(sl)+sinZ*Math.sin(sl)*Math.cos(sunAz-asp);
+shade[idx]=clamp(v,0,1)
+}}
+return{slope,aspect,shade}
+}
+function contourSegments(grid,nrows,ncols,level){
+const segs=[];
+for(let y=0;y<nrows-1;y++){for(let x=0;x<ncols-1;x++){
+const v0=grid[y*ncols+x],v1=grid[y*ncols+x+1],v2=grid[(y+1)*ncols+x+1],v3=grid[(y+1)*ncols+x];
+if(Number.isNaN(v0)||Number.isNaN(v1)||Number.isNaN(v2)||Number.isNaN(v3))continue;
+let idx=0;if(v0>level)idx|=1;if(v1>level)idx|=2;if(v2>level)idx|=4;if(v3>level)idx|=8;
+if(idx===0||idx===15)continue;
+const lerp=(va,vb,ax,ay,bx,by)=>{const t=(level-va)/(vb-va);return[ax+t*(bx-ax),ay+t*(by-ay)]};
+const eT=()=>lerp(v0,v1,x,y,x+1,y),eR=()=>lerp(v1,v2,x+1,y,x+1,y+1),eB=()=>lerp(v3,v2,x,y+1,x+1,y+1),eL=()=>lerp(v0,v3,x,y,x,y+1);
+switch(idx){
+case 1:case 14:segs.push([eL(),eT()]);break;
+case 2:case 13:segs.push([eT(),eR()]);break;
+case 3:case 12:segs.push([eL(),eR()]);break;
+case 4:case 11:segs.push([eR(),eB()]);break;
+case 6:case 9:segs.push([eT(),eB()]);break;
+case 7:case 8:segs.push([eL(),eB()]);break;
+case 5:segs.push([eL(),eT()],[eR(),eB()]);break;
+case 10:segs.push([eT(),eR()],[eL(),eB()]);break;
+}}}
+return segs
+}
+function niceTicks(min,max,target){
+const span=max-min||1,raw=span/target,mag=Math.pow(10,Math.floor(Math.log10(raw))),norm=raw/mag;
+let step;if(norm<=1)step=1;else if(norm<=2)step=2;else if(norm<=5)step=5;else step=10;step*=mag;
+const out=[];for(let v=Math.ceil(min/step)*step;v<=max+1e-9;v+=step)out.push(v);return out
+}
+
+/* ===== Global state ===== */
+const MAX_DISPLAY=1500,MAX_CONTOUR=700;
+const S={grid:null,nrows:0,ncols:0,cellX:1,cellY:1,xll:0,yll:0,prj:null,ascName:'',prjName:'',minZ:0,maxZ:1,stats:null,dGrid:null,dRows:0,dCols:0,dStep:1,cGrid:null,cRows:0,cCols:0,cStep:1,shade:null,slope:null,aspect:null,sunAz:315,sunAlt:45,az3d:35,el3d:35,zoom3d:1,profileRow:0};/* ===== Dataset ingestion ===== */
+function setDataset(parsed,prjInfo,ascName,prjName){
+busy(true);
+setTimeout(()=>{
+try{
+S.grid=parsed.grid;S.nrows=parsed.nrows;S.ncols=parsed.ncols;
+S.cellX=parsed.cellX;S.cellY=parsed.cellY;S.xll=parsed.xll;S.yll=parsed.yll;
+S.prj=prjInfo;S.ascName=ascName||'elevation.asc';S.prjName=prjName||'';
+S.profileRow=Math.floor(S.nrows/2);
+computeStats();buildPyramids();recomputeTerrain();
+$('fileBadge').textContent=`${S.ncols} × ${S.nrows} · ${S.ascName}`;
+$('fileBadge').classList.add('ok');
+const cb=$('crsBadge');cb.style.display='inline-block';cb.textContent=S.prj.name;
+$('metaCard').style.display='';$('statCard').style.display='';$('expCard').style.display='';
+updateMetaPanel();updateStatsPanel();updateProfileSlider();refreshAll()
+}catch(err){console.error(err);showErr('Failed to process dataset: '+err.message)}finally{busy(false)}
+},20)
+}
+function computeStats(){
+const g=S.grid;let min=Infinity,max=-Infinity,sum=0,n=0,nd=0;
+for(let i=0;i<g.length;i++){const v=g[i];if(Number.isNaN(v)){nd++;continue}if(v<min)min=v;if(v>max)max=v;sum+=v;n++}
+if(!n)throw new Error('The raster contains no valid data cells.');
+const arr=new Float64Array(n);let k=0;
+for(let i=0;i<g.length;i++)if(!Number.isNaN(g[i]))arr[k++]=g[i];
+arr.sort();
+const median=n%2?arr[(n-1)/2]:(arr[n/2-1]+arr[n/2])/2;
+const mean=sum/n;let varSum=0;
+for(let i=0;i<n;i++){const d=arr[i]-mean;varSum+=d*d}
+S.minZ=min;S.maxZ=max;
+S.stats={min,max,mean,median,std:Math.sqrt(varSum/n),relief:max-min,valid:n,nodata:nd,total:g.length}
+}
+function buildPyramids(){
+S.dStep=Math.max(1,Math.ceil(Math.max(S.nrows,S.ncols)/MAX_DISPLAY));
+const d=downsample(S.grid,S.nrows,S.ncols,S.dStep);
+S.dGrid=d.data;S.dRows=d.nrows;S.dCols=d.ncols;
+S.cStep=Math.max(1,Math.ceil(Math.max(S.nrows,S.ncols)/MAX_CONTOUR));
+const c=downsample(S.grid,S.nrows,S.ncols,S.cStep);
+S.cGrid=c.data;S.cRows=c.nrows;S.cCols=c.ncols
+}
+function recomputeTerrain(){
+const t=computeTerrain(S.dGrid,S.dRows,S.dCols,S.cellX*S.dStep,S.cellY*S.dStep,S.sunAz,S.sunAlt);
+S.slope=t.slope;S.aspect=t.aspect;S.shade=t.shade
+}
+
+/* ===== Panels ===== */
+function updateMetaPanel(){
+const st=S.stats,prj=S.prj;
+const units=prj.units&&prj.units!=='Unknown'?prj.units:'metre';
+const widthM=S.ncols*S.cellX,heightM=S.nrows*S.cellY,areaM2=widthM*heightM;
+const toFt=v=>v*3.28084;
+$('mCrs').textContent=prj.name;$('mDatum').textContent=prj.datum;$('mProj').textContent=prj.projection;$('mUnits').textContent=units;
+$('mGrid').textContent=`${S.ncols} cols × ${S.nrows} rows (${fmtInt(S.ncols*S.nrows)})`;
+$('mCell').textContent=`${fmt(S.cellX,2)} × ${fmt(S.cellY,2)} ${units}`;
+$('mGround').textContent=`${fmt(widthM/1000,2)} km × ${fmt(heightM/1000,2)} km`;
+$('mArea').textContent=`${fmt(areaM2/1e6,2)} km² · ${fmt(areaM2*0.000247105,1)} ac`;
+$('mMinX').textContent=fmt(S.xll,2);$('mMaxX').textContent=fmt(S.xll+widthM,2);
+$('mMinY').textContent=fmt(S.yll,2);$('mMaxY').textContent=fmt(S.yll+heightM,2);
+$('sMin').textContent=`${fmt(st.min,2)} m (${fmt(toFt(st.min),1)} ft)`;
+$('sMax').textContent=`${fmt(st.max,2)} m (${fmt(toFt(st.max),1)} ft)`;
+$('sMean').textContent=`${fmt(st.mean,2)} m (${fmt(toFt(st.mean),1)} ft)`;
+$('sMed').textContent=`${fmt(st.median,2)} m`;
+$('sStd').textContent=`${fmt(st.std,2)} m`;
+$('sRel').textContent=`${fmt(st.relief,2)} m (${fmt(toFt(st.relief),1)} ft)`;
+$('sValid').textContent=fmtInt(st.valid);$('sNoData').textContent=fmtInt(st.nodata)
+}
+function updateStatsPanel(){
+const st=S.stats,prj=S.prj;
+const units=prj.units!=='Unknown'?prj.units:'metre';
+const rows=[
+['Coordinate reference system',prj.name],['Datum',prj.datum],['Projection method',prj.projection],['Linear unit',units],
+['—',''],['Columns',fmtInt(S.ncols)],['Rows',fmtInt(S.nrows)],['Total cells',fmtInt(S.ncols*S.nrows)],
+['Cell size X',`${fmt(S.cellX,3)} ${units}`],['Cell size Y',`${fmt(S.cellY,3)} ${units}`],
+['West extent',fmt(S.xll,2)],['East extent',fmt(S.xll+S.ncols*S.cellX,2)],
+['South extent',fmt(S.yll,2)],['North extent',fmt(S.yll+S.nrows*S.cellY,2)],
+['Ground area',`${fmt(S.ncols*S.cellX*S.nrows*S.cellY/1e6,3)} km²`],
+['—',''],['Minimum elevation',`${fmt(st.min,2)} m`],['Maximum elevation',`${fmt(st.max,2)} m`],
+['Mean elevation',`${fmt(st.mean,2)} m`],['Median elevation',`${fmt(st.median,2)} m`],
+['Standard deviation',`${fmt(st.std,2)} m`],['Total relief',`${fmt(st.relief,2)} m`],
+['Valid cells',fmtInt(st.valid)],['NoData cells',fmtInt(st.nodata)]
+];
+for(const[k,v]of Object.entries(prj.params||{}))rows.push([k,fmt(v,6)]);
+$('statsTable').innerHTML=rows.map(([a,b])=>b===''&&a==='—'?'<tr><td colspan="2" style="padding:3px"></td></tr>':`<tr><td>${a}</td><td>${b}</td></tr>`).join('')
+}
+function updateProfileSlider(){const r=$('rRow');r.max=S.nrows-1;r.value=S.profileRow;updateProfileLabel()}
+function updateProfileLabel(){const northing=S.yll+(S.nrows-S.profileRow-0.5)*S.cellY;$('vRow').textContent=`row ${S.profileRow} · N ${fmt(northing,0)} m`}
+
+/* ===== 2D Map ===== */
+const cMap=$('cMap');const ctxMap=cMap.getContext('2d');
+function renderRaster(){
+if(!S.grid)return;
+const g=S.dGrid,R=S.dRows,C=S.dCols;
+cMap.width=C;cMap.height=R;
+const layer=$('selLayer').value,cmapName=$('selCmap').value,blend=$('cbBlend').checked;
+const range=(S.maxZ-S.minZ)||1;
+const img=ctxMap.createImageData(C,R);const d=img.data;
+for(let i=0;i<R*C;i++){
+const v=g[i];let r=0,gg=0,b=0;
+if(Number.isNaN(v)){r=12;gg=14;b=20}
+else if(layer==='elevation'){const t=(v-S.minZ)/range;const c=cmapRGB(cmapName,t);r=c[0];gg=c[1];b=c[2];if(blend&&S.shade){const s=0.38+0.62*S.shade[i];r=Math.min(255,r*s);gg=Math.min(255,gg*s);b=Math.min(255,b*s)}}
+else if(layer==='hillshade'){const s=S.shade?S.shade[i]:0.5;r=gg=b=s*255}
+else if(layer==='slope'){const s=S.slope?S.slope[i]:0;const c=cmapRGB(cmapName==='gray'?'gray':'magma',clamp(s/60,0,1));r=c[0];gg=c[1];b=c[2]}
+else{const a=S.aspect?S.aspect[i]:0,sl=S.slope?S.slope[i]:0;const val=0.45+0.55*clamp(sl/45,0,1);const c=hsv2rgb(a,0.85,val);r=c[0];gg=c[1];b=c[2]}
+const o=i*4;d[o]=r;d[o+1]=gg;d[o+2]=b;d[o+3]=255
+}
+ctxMap.putImageData(img,0,0);
+if($('cbCont').checked)drawContours();
+drawTransectLine();
+updateColorbar(layer,cmapName)
+}
+function drawContours(){
+if(!S.cGrid)return;
+const interval=parseFloat($('rCont').value)||20;
+const sx=cMap.width/S.ncols,sy=cMap.height/S.nrows;
+ctxMap.save();ctxMap.lineWidth=Math.max(1,cMap.width/900);ctxMap.strokeStyle='rgba(10,14,22,0.62)';ctxMap.beginPath();
+const start=Math.ceil(S.minZ/interval)*interval;let count=0;
+for(let lev=start;lev<S.maxZ&&count<60;lev+=interval,count++){
+const segs=contourSegments(S.cGrid,S.cRows,S.cCols,lev);
+for(const s of segs){const p=s[0],q=s[1];ctxMap.moveTo(p[0]*S.cStep*sx,p[1]*S.cStep*sy);ctxMap.lineTo(q[0]*S.cStep*sx,q[1]*S.cStep*sy)}
+}
+ctxMap.stroke();ctxMap.restore()
+}
+function drawTransectLine(){
+if(S.profileRow===null)return;
+const y=((S.profileRow+0.5)/S.nrows)*cMap.height;
+ctxMap.save();ctxMap.strokeStyle='rgba(255,60,60,0.95)';ctxMap.lineWidth=Math.max(1.5,cMap.width/700);ctxMap.setLineDash([8,6]);
+ctxMap.beginPath();ctxMap.moveTo(0,y);ctxMap.lineTo(cMap.width,y);ctxMap.stroke();ctxMap.restore()
+}
+function updateColorbar(layer,cmapName){
+const stops=CMAP_STOPS[cmapName]||CMAP_STOPS.terrain;
+const parts=stops.map(s=>`rgb(${s[1]},${s[2]},${s[3]}) ${(s[0]*100).toFixed(1)}%`);
+$('cbBar').style.background=`linear-gradient(90deg, ${parts.join(',')})`;
+if(layer==='elevation'){$('cbLo').textContent=fmt(S.minZ,1);$('cbHi').textContent=fmt(S.maxZ,1);$('cbUnit').textContent='elevation (m)'}
+else if(layer==='hillshade'){$('cbLo').textContent='0';$('cbHi').textContent='255';$('cbUnit').textContent='shade'}
+else if(layer==='slope'){$('cbLo').textContent='0°';$('cbHi').textContent='60°+';$('cbUnit').textContent='slope'}
+else{$('cbLo').textContent='N';$('cbHi').textContent='N';$('cbUnit').textContent='aspect (hue)'}
+}
+cMap.addEventListener('click',e=>{
+if(!S.grid)return;
+const r=cMap.getBoundingClientRect();
+const yFrac=(e.clientY-r.top)/r.height;
+S.profileRow=clamp(Math.round(yFrac*S.nrows),0,S.nrows-1);
+updateProfileSlider();drawTransectLine();renderProfile()
+});
+
+/* ===== 3D Surface ===== */
+const c3d=$('c3d');const ctx3d=c3d.getContext('2d');
+function render3D(){
+if(!S.grid)return;
+const rect=c3d.getBoundingClientRect();
+const W=Math.max(50,rect.width),H=Math.max(50,rect.height);
+const dpr=Math.min(2,window.devicePixelRatio||1);
+c3d.width=Math.round(W*dpr);c3d.height=Math.round(H*dpr);
+ctx3d.setTransform(dpr,0,0,dpr,0,0);
+ctx3d.fillStyle='#070d18';ctx3d.fillRect(0,0,W,H);
+const MAX3D=108;
+const step=Math.max(1,Math.ceil(Math.max(S.nrows,S.ncols)/MAX3D));
+const ds=downsample(S.grid,S.nrows,S.ncols,step);
+const R=ds.nrows,C=ds.ncols,Z=ds.data;
+const range=(S.maxZ-S.minZ)||1;
+const vex=parseFloat($('rVex').value)||1;
+const cmapName=$('selCmap3d').value;
+const wW=(S.ncols*S.cellX)/1000,wH=(S.nrows*S.cellY)/1000;
+const horizSpan=Math.max(wW,wH);
+const reliefSpan=horizSpan*0.38*vex;
+const vScale=reliefSpan/range;
+const N=R*C;
+const vx=new Float32Array(N),vy=new Float32Array(N),vz=new Float32Array(N);
+for(let j=0;j<R;j++){for(let i=0;i<C;i++){
+const gi=i*step+step/2,gj=j*step+step/2,k=j*C+i;
+vx[k]=-wW/2+(gi/S.ncols)*wW;
+vy[k]=wH/2-(gj/S.nrows)*wH;
+const v=Z[k];vz[k]=Number.isNaN(v)?0:(v-S.minZ)*vScale
+}}
+const az=S.az3d*Math.PI/180;
+const el=clamp(S.el3d,4,88)*Math.PI/180;
+const ca=Math.cos(az),sa=Math.sin(az),ce=Math.cos(el),se=Math.sin(el);
+const dvec=[sa*ce,ca*ce,se];
+const f=[-dvec[0],-dvec[1],-dvec[2]];
+const right=[-ca,sa,0];
+const up=[-sa*se,-ca*se,ce];
+const target=[0,0,reliefSpan*0.45];
+const dist=horizSpan*2.1/S.zoom3d;
+const cam=[target[0]+dvec[0]*dist,target[1]+dvec[1]*dist,target[2]+dvec[2]*dist];
+const focal=Math.min(W,H)*1.05*S.zoom3d;
+const px=new Float32Array(N),py=new Float32Array(N),pd=new Float32Array(N);
+for(let k=0;k<N;k++){
+const ax=vx[k]-cam[0],ay=vy[k]-cam[1],az2=vz[k]-cam[2];
+const zc=ax*f[0]+ay*f[1]+az2*f[2];
+const xc=ax*right[0]+ay*right[1]+az2*right[2];
+const yc=ax*up[0]+ay*up[1]+az2*up[2];
+const s=focal/Math.max(zc,0.001);
+px[k]=W/2+xc*s;py[k]=H/2-yc*s;pd[k]=zc
+}
+const faces=[];
+for(let j=0;j<R-1;j++){for(let i=0;i<C-1;i++){
+const a=j*C+i,b=j*C+i+1,c=(j+1)*C+i+1,d=(j+1)*C+i;
+const z0=Z[a],z1=Z[b],z2=Z[c],z3=Z[d];
+if(Number.isNaN(z0)||Number.isNaN(z1)||Number.isNaN(z2)||Number.isNaN(z3))continue;
+if(pd[a]<=0.05||pd[b]<=0.05||pd[c]<=0.05||pd[d]<=0.05)continue;
+faces.push({a,b,c,d,depth:(pd[a]+pd[b]+pd[c]+pd[d])*0.25,zavg:(z0+z1+z2+z3)*0.25})
+}}
+faces.sort((p,q)=>q.depth-p.depth);
+const sunA=S.sunAz*Math.PI/180,sunH=S.sunAlt*Math.PI/180;
+const L=[Math.sin(sunA)*Math.cos(sunH),Math.cos(sunA)*Math.cos(sunH),Math.sin(sunH)];
+for(let n=0;n<faces.length;n++){
+const F=faces[n];const a=F.a,b=F.b,c=F.c,d=F.d;
+const e1x=vx[b]-vx[a],e1y=vy[b]-vy[a],e1z=vz[b]-vz[a];
+const e2x=vx[d]-vx[a],e2y=vy[d]-vy[a],e2z=vz[d]-vz[a];
+let nx=e1y*e2z-e1z*e2y,ny=e1z*e2x-e1x*e2z,nz=e1x*e2y-e1y*e2x;
+const len=Math.hypot(nx,ny,nz)||1;nx/=len;ny/=len;nz/=len;
+if(nz<0){nx=-nx;ny=-ny;nz=-nz}
+let lam=nx*L[0]+ny*L[1]+nz*L[2];if(lam<0)lam=0;
+const bright=0.32+0.68*lam;
+const t=(F.zavg-S.minZ)/range;
+const col=cmapRGB(cmapName,t);
+const r=Math.min(255,col[0]*bright)|0,g=Math.min(255,col[1]*bright)|0,bl=Math.min(255,col[2]*bright)|0;
+ctx3d.beginPath();ctx3d.moveTo(px[a],py[a]);ctx3d.lineTo(px[b],py[b]);ctx3d.lineTo(px[c],py[c]);ctx3d.lineTo(px[d],py[d]);ctx3d.closePath();
+ctx3d.fillStyle=`rgb(${r},${g},${bl})`;ctx3d.fill()
+}
+ctx3d.save();ctx3d.font='11px ui-sans-serif, system-ui, sans-serif';ctx3d.fillStyle='rgba(143,163,192,0.85)';
+ctx3d.fillText(`relief ${fmt(S.stats.relief,0)} m  ·  ${vex.toFixed(1)}× exaggeration  ·  az ${S.az3d|0}° / el ${S.el3d|0}°`,12,H-12);
+ctx3d.restore()
+}
+(function(){
+let dragging=false,lastX=0,lastY=0;
+c3d.addEventListener('pointerdown',e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;c3d.setPointerCapture(e.pointerId)});
+c3d.addEventListener('pointermove',e=>{
+if(!dragging)return;
+const dx=e.clientX-lastX,dy=e.clientY-lastY;
+lastX=e.clientX;lastY=e.clientY;
+S.az3d=(S.az3d-dx*0.45+360)%360;
+S.el3d=clamp(S.el3d+dy*0.35,4,88);
+schedule3D()
+});
+const stop=e=>{dragging=false;try{c3d.releasePointerCapture(e.pointerId)}catch(_){}};
+c3d.addEventListener('pointerup',stop);c3d.addEventListener('pointercancel',stop);
+c3d.addEventListener('wheel',e=>{e.preventDefault();S.zoom3d=clamp(S.zoom3d*(e.deltaY>0?0.92:1.08),0.35,5);schedule3D()},{passive:false})
+})();/* ===== Profile ===== */
+const cProf=$('cProfile');const ctxProf=cProf.getContext('2d');
+function renderProfile(){
+if(!S.grid)return;
+const rect=cProf.getBoundingClientRect();
+const W=Math.max(80,rect.width),H=Math.max(80,rect.height);
+const dpr=Math.min(2,window.devicePixelRatio||1);
+cProf.width=Math.round(W*dpr);cProf.height=Math.round(H*dpr);
+ctxProf.setTransform(dpr,0,0,dpr,0,0);ctxProf.clearRect(0,0,W,H);
+const M={l:74,r:20,t:30,b:46};
+const pw=W-M.l-M.r,ph=H-M.t-M.b;
+const row=clamp(Math.round(S.profileRow/S.dStep),0,S.dRows-1);
+const C=S.dCols;const vals=new Float64Array(C);
+for(let i=0;i<C;i++)vals[i]=S.dGrid[row*C+i];
+const totalDist=S.ncols*S.cellX;
+const yMin=S.stats.min,yMax=S.stats.max;
+const yPad=(yMax-yMin)*0.08||1;
+const y0=yMin-yPad,y1=yMax+yPad;
+const X=i=>M.l+(i/(C-1))*pw;
+const Y=v=>M.t+(1-(v-y0)/(y1-y0))*ph;
+ctxProf.fillStyle='#070d18';ctxProf.fillRect(0,0,W,H);
+ctxProf.strokeStyle='#1f2c44';ctxProf.lineWidth=1;ctxProf.font='11px ui-sans-serif, system-ui, sans-serif';ctxProf.fillStyle='#8fa3c0';
+const yTicks=niceTicks(y0,y1,6);
+ctxProf.textAlign='right';ctxProf.textBaseline='middle';
+for(const tv of yTicks){const y=Y(tv);ctxProf.beginPath();ctxProf.moveTo(M.l,y);ctxProf.lineTo(M.l+pw,y);ctxProf.stroke();ctxProf.fillText(fmt(tv,0)+' m',M.l-8,y)}
+const xTicks=niceTicks(0,totalDist,6);
+ctxProf.textAlign='center';ctxProf.textBaseline='top';
+for(const tv of xTicks){const x=M.l+(tv/totalDist)*pw;ctxProf.beginPath();ctxProf.moveTo(x,M.t);ctxProf.lineTo(x,M.t+ph);ctxProf.stroke();ctxProf.fillText(fmt(tv,0),x,M.t+ph+8)}
+const yMean=Y(S.stats.mean);
+ctxProf.save();ctxProf.setLineDash([5,4]);ctxProf.strokeStyle='rgba(244,63,94,0.7)';
+ctxProf.beginPath();ctxProf.moveTo(M.l,yMean);ctxProf.lineTo(M.l+pw,yMean);ctxProf.stroke();ctxProf.restore();
+ctxProf.beginPath();let started=false;
+for(let i=0;i<C;i++){const v=vals[i];if(Number.isNaN(v)){started=false;continue}const x=X(i),y=Y(v);if(!started){ctxProf.moveTo(x,y);started=true}else ctxProf.lineTo(x,y)}
+ctxProf.strokeStyle='#38bdf8';ctxProf.lineWidth=2;ctxProf.stroke();
+ctxProf.save();ctxProf.beginPath();started=false;
+for(let i=0;i<C;i++){const v=vals[i];if(Number.isNaN(v)){started=false;continue}const x=X(i),y=Y(v);if(!started){ctxProf.moveTo(x,Y(y0));ctxProf.lineTo(x,y);started=true}else ctxProf.lineTo(x,y)}
+for(let i=C-1;i>=0;i--){const v=vals[i];if(Number.isNaN(v))continue;ctxProf.lineTo(X(i),Y(y0))}
+ctxProf.closePath();
+const grad=ctxProf.createLinearGradient(0,M.t,0,M.t+ph);
+grad.addColorStop(0,'rgba(56,189,248,0.35)');grad.addColorStop(1,'rgba(56,189,248,0.03)');
+ctxProf.fillStyle=grad;ctxProf.fill();ctxProf.restore();
+ctxProf.fillStyle='#e6edf7';ctxProf.font='600 12.5px ui-sans-serif, system-ui, sans-serif';ctxProf.textAlign='left';ctxProf.textBaseline='top';
+const northing=S.yll+(S.nrows-S.profileRow-0.5)*S.cellY;
+ctxProf.fillText(`E–W profile · row ${S.profileRow} · northing ${fmt(northing,0)} m`,M.l,8);
+ctxProf.fillStyle='#8fa3c0';ctxProf.font='11px ui-sans-serif, system-ui, sans-serif';ctxProf.textAlign='center';ctxProf.textBaseline='bottom';
+ctxProf.fillText('distance along transect (m)',M.l+pw/2,H-4);
+ctxProf.save();ctxProf.translate(14,M.t+ph/2);ctxProf.rotate(-Math.PI/2);
+ctxProf.textAlign='center';ctxProf.textBaseline='middle';ctxProf.fillText('elevation (m ASL)',0,0);ctxProf.restore()
+}
+
+/* ===== Orchestration ===== */
+let rafId=0;
+function schedule3D(){if(rafId)return;rafId=requestAnimationFrame(()=>{rafId=0;render3D()})}
+function refreshAll(){renderRaster();render3D();renderProfile()}
+let resizeTimer=0;
+window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{render3D();renderProfile()},120)});
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+btn.addEventListener('click',()=>{
+document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+btn.classList.add('active');
+$(btn.dataset.tab).classList.add('active');
+requestAnimationFrame(()=>{render3D();renderProfile()})
+})
+});
+$('selLayer').addEventListener('change',renderRaster);
+$('selCmap').addEventListener('change',renderRaster);
+$('cbBlend').addEventListener('change',renderRaster);
+$('cbCont').addEventListener('change',renderRaster);
+$('rCont').addEventListener('input',e=>{$('vCont').textContent=e.target.value+' m';if($('cbCont').checked)renderRaster()});
+$('rAz').addEventListener('input',e=>{S.sunAz=+e.target.value;$('vAz').textContent=S.sunAz+'°';recomputeTerrain();renderRaster();render3D()});
+$('rAlt').addEventListener('input',e=>{S.sunAlt=+e.target.value;$('vAlt').textContent=S.sunAlt+'°';recomputeTerrain();renderRaster();render3D()});
+$('rVex').addEventListener('input',e=>{$('vVex').textContent=(+e.target.value).toFixed(1)+'×';schedule3D()});
+$('selCmap3d').addEventListener('change',schedule3D);
+$('bReset3d').addEventListener('click',()=>{S.az3d=35;S.el3d=35;S.zoom3d=1;schedule3D()});
+$('rRow').addEventListener('input',e=>{S.profileRow=+e.target.value;updateProfileLabel();drawTransectLine();renderProfile()});
+
+/* ===== File loading ===== */
+const drop=$('drop'),fAsc=$('fAsc'),fPrj=$('fPrj');
+let pendingAsc=null,pendingPrj=null;
+function readFile(file){return new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=()=>rej(fr.error);fr.readAsText(file)})}
+async function loadFromFiles(ascFile,prjFile){
+if(!ascFile){showErr('Please provide at least an .asc file.');return}
+busy(true);
+try{
+const ascText=await readFile(ascFile);
+const prjText=prjFile?await readFile(prjFile):null;
+const parsed=parseASC(ascText);
+const prjInfo=prjText?parsePRJ(prjText):{name:'Local / Unspecified',datum:'Unknown',units:'metre',projection:'Unknown',params:{},raw:''};
+setDataset(parsed,prjInfo,ascFile.name,prjFile?prjFile.name:'')
+}catch(err){console.error(err);showErr('Could not load file: '+err.message);busy(false)}
+}
+$('bAsc').addEventListener('click',()=>fAsc.click());
+$('bPrj').addEventListener('click',()=>fPrj.click());
+fAsc.addEventListener('change',async e=>{pendingAsc=e.target.files[0];await loadFromFiles(pendingAsc,pendingPrj)});
+fPrj.addEventListener('change',async e=>{pendingPrj=e.target.files[0];if(pendingAsc)await loadFromFiles(pendingAsc,pendingPrj)});
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over')}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over')}));
+drop.addEventListener('drop',async e=>{
+const files=[...e.dataTransfer.files];
+const asc=files.find(f=>/\.(asc|txt|grd|dem)$/i.test(f.name));
+const prj=files.find(f=>/\.(prj|wkt)$/i.test(f.name));
+await loadFromFiles(asc,prj)
+});
+
+/* ===== Sample DEM ===== */
+function makeSampleDEM(){
+const ncols=120,nrows=120,cell=10,xll=485000,yll=4320000;
+const grid=new Float32Array(nrows*ncols);const PI=Math.PI;
+for(let j=0;j<nrows;j++){for(let i=0;i<ncols;i++){
+const X=(i/(ncols-1))*4*PI,Y=(j/(nrows-1))*4*PI;
+let z=280+35*Math.sin(X*0.8)*Math.cos(Y*0.7)+25*Math.sin(X*0.3+Y*0.4)+4*Math.sin(X*2.5)*Math.cos(Y*2.1)-22*Math.exp(-((X-2*PI)**2+(Y-2*PI)**2)/8);
+grid[j*ncols+i]=z
+}}
+const prj={name:'NAD83 / UTM zone 15N',datum:'North_American_Datum_1983',projection:'Transverse_Mercator',units:'metre',unitScale:1,isProjected:true,params:{'Latitude of origin':0,'Central meridian':-93,'Scale factor':0.9996,'False easting':500000,'False northing':0},raw:'PROJCS["NAD83 / UTM zone 15N",...]'};
+return{parsed:{grid,nrows,ncols,cellX:cell,cellY:cell,xll,yll,nodata:-9999,header:{}},prj}
+}
+$('bSample').addEventListener('click',()=>{const{parsed,prj}=makeSampleDEM();setDataset(parsed,prj,'elevation (sample).asc','')});
+
+/* ===== Exports ===== */
+function download(name,blob){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
+$('bPng').addEventListener('click',()=>{
+if(!S.grid)return;
+cMap.toBlob(b=>{
+download(S.ascName.replace(/\.asc$/i,'')+'_map.png',b);
+const cellX=(S.ncols*S.cellX)/cMap.width,cellY=(S.nrows*S.cellY)/cMap.height;
+const ulx=S.xll+cellX/2,uly=S.yll+S.nrows*S.cellY-cellY/2;
+const pgw=[cellX.toFixed(10),'0.0000000000','0.0000000000',(-cellY).toFixed(10),ulx.toFixed(10),uly.toFixed(10)].join('\n');
+download(S.ascName.replace(/\.asc$/i,'')+'_map.pgw',new Blob([pgw],{type:'text/plain'}))
+},'image/png')
+});
+$('bCsv').addEventListener('click',()=>{
+if(!S.stats)return;
+const st=S.stats,prj=S.prj;
+const rows=[['metric','value','unit'],
+['crs',prj.name,''],['datum',prj.datum,''],['projection',prj.projection,''],['units',prj.units,''],
+['ncols',S.ncols,'cells'],['nrows',S.nrows,'cells'],['cellsize_x',S.cellX,'map units'],['cellsize_y',S.cellY,'map units'],
+['west',S.xll,'map units'],['east',S.xll+S.ncols*S.cellX,'map units'],['south',S.yll,'map units'],['north',S.yll+S.nrows*S.cellY,'map units'],
+['min_elevation',st.min,'m'],['max_elevation',st.max,'m'],['mean_elevation',st.mean,'m'],['median_elevation',st.median,'m'],
+['std_deviation',st.std,'m'],['relief',st.relief,'m'],['valid_cells',st.valid,'cells'],['nodata_cells',st.nodata,'cells']];
+const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+download(S.ascName.replace(/\.asc$/i,'')+'_stats.csv',new Blob([csv],{type:'text/csv'}))
+});
+$('b3d').addEventListener('click',()=>{if(!S.grid)return;c3d.toBlob(b=>download(S.ascName.replace(/\.asc$/i,'')+'_3d.png',b),'image/png')});
+
+/* ===== Boot ===== */
+(function boot(){const{parsed,prj}=makeSampleDEM();setDataset(parsed,prj,'elevation (sample).asc','')})();
+</script>
+</body>
+</html>
