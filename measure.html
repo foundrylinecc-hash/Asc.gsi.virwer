@@ -173,14 +173,19 @@ function clearAll(){ S.points = []; draw(); updateResult(); }
 function setMode(m){ S.mode = m; $('areaBtn').classList.toggle('active', m==='area'); $('distBtn').classList.toggle('active', m==='distance'); clearAll(); }
 function setLocked(v){ S.locked = v; $('lockBtn').textContent = v ? '🔓 Unlock' : '🔒 Lock'; $('lockBtn').classList.toggle('active', v); }
 
-canvas.addEventListener('click', e => {
+let _lastTap = 0;
+canvas.addEventListener('pointerdown', e => {
   if (!S.grid) return;
   if (S.locked){ $('result').textContent = 'Map is locked. Tap Unlock to add points.'; return; }
+  const now = Date.now();
+  if (now - _lastTap < 120) return;   // ignore duplicate from mobile double-fire
+  _lastTap = now;
+  e.preventDefault();
   const rect = canvas.getBoundingClientRect();
   const x = (e.clientX - rect.left) * (canvas.width / rect.width);
   const y = (e.clientY - rect.top) * (canvas.height / rect.height);
   const max = S.mode === 'area' ? 6 : 2;
-  if (S.points.length >= max){ $('result').textContent = `Maximum ${max} points. Clear or switch mode.`; return; }
+  if (S.points.length >= max) S.points = [];   // start a fresh measurement instead of blocking
   S.points.push({ x, y });
   draw(); updateResult();
 });
