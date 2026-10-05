@@ -12,15 +12,26 @@ html,body{height:100%;margin:0;font-family:ui-sans-serif,system-ui,sans-serif;ba
 #topbar h1{font-size:14px;margin:0;font-weight:600}
 #fileInfo{font-size:11px;color:#8fa3c0;margin-left:auto}
 #controls{padding:8px 12px;background:#1c2942;border-bottom:1px solid #2b3b58;display:flex;gap:6px;flex-wrap:wrap}
-#controls button{padding:6px 10px;border:1px solid #2b3b58;border-radius:5px;background:#22304a;color:#e6edf7;cursor:pointer;font-size:12px}
+#controls button{padding:7px 11px;border:1px solid #2b3b58;border-radius:6px;background:#22304a;color:#e6edf7;cursor:pointer;font-size:12px;font-weight:550}
 #controls button:hover{background:#2c3d5c}
 #controls button.active{background:#0ea5e9;color:#001;border-color:#0ea5e9}
 #controls button.primary{background:linear-gradient(135deg,#0ea5e9,#0284c7);border-color:#0ea5e9;color:#001}
+#main{flex:1;min-height:0;display:flex}
 #stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:10px;overflow:hidden;background:#070d18}
 #canvas{max-width:100%;max-height:100%;border:1px solid #2b3b58;border-radius:6px;background:#070d18;touch-action:none;cursor:crosshair}
-#result{padding:10px 12px;background:#152238;border-top:1px solid #2b3b58;font-size:13px;min-height:22px;line-height:1.5}
-#result b{color:#22d3ee}
+#panel{flex:0 0 250px;background:#152238;border-left:1px solid #2b3b58;padding:12px;overflow-y:auto;font-size:12.5px}
+#panel h2{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:#8fa3c0;margin:0 0 8px;font-weight:700}
+#panel .sect{margin-bottom:16px}
+#panel .big{font-size:19px;color:#22d3ee;font-weight:700;margin:2px 0 8px;word-break:break-all}
+#panel .row{display:flex;justify-content:space-between;padding:3px 0;gap:8px}
+#panel .row span:first-child{color:#8fa3c0}
+#panel .row span:last-child{font-variant-numeric:tabular-nums;text-align:right}
+#status{padding:8px 12px;background:#152238;border-top:1px solid #2b3b58;font-size:12px;min-height:18px}
 #fileInput{display:none}
+@media (max-width:700px){
+  #main{flex-direction:column}
+  #panel{flex:0 0 auto;border-left:none;border-top:1px solid #2b3b58;max-height:45%}
+}
 </style>
 </head>
 <body>
@@ -33,185 +44,220 @@ html,body{height:100%;margin:0;font-family:ui-sans-serif,system-ui,sans-serif;ba
 <div id="controls">
 <button id="loadBtn" class="primary">📂 Load .asc</button>
 <input type="file" id="fileInput" accept=".asc,.txt,.grd,.dem">
-<button id="lockBtn">🔒 Lock</button>
-<button id="areaBtn">Area mode</button>
-<button id="distBtn">Distance mode</button>
-<button id="clearBtn">Clear</button>
+<button id="lockBtn">🔓 Unlock</button>
+<button id="areaBtn">⬛ Area mode</button>
+<button id="distBtn">📏 Distance mode</button>
+<button id="clearBtn">🗑️ Clear</button>
 </div>
+<div id="main">
 <div id="stage"><canvas id="canvas"></canvas></div>
-<div id="result">Load a .asc file to begin measuring.</div>
+<aside id="panel">
+<div class="sect">
+<h2>Status</h2>
+<div class="row"><span>Mode</span><span id="pMode">Distance</span></div>
+<div class="row"><span>Points</span><span id="pCount">0 / 2</span></div>
+</div>
+<div class="sect">
+<h2 id="pResTitle">Distance</h2>
+<div class="big" id="pRes">—</div>
+<div id="pRows"></div>
+</div>
+</aside>
+</div>
+<div id="status">Load a .asc file to begin.</div>
 </div>
 
 <script>
-const $ = id => document.getElementById(id);
-const canvas = $('canvas');
-const ctx = canvas.getContext('2d');
-const S = { grid:null, nrows:0, ncols:0, cellX:1, cellY:1, minZ:0, maxZ:1, locked:true, mode:'area', points:[], step:1, dRows:0, dCols:0, dGrid:null };
-const HEADER_KEYS = new Set(['ncols','nrows','xllcorner','yllcorner','xllcenter','yllcenter','cellsize','dx','dy','nodata_value','nodata']);
+const $=id=>document.getElementById(id);
+const canvas=$('canvas'), ctx=canvas.getContext('2d');
+const S={grid:null,nrows:0,ncols:0,cellX:1,cellY:1,minZ:0,maxZ:1,locked:true,mode:'distance',points:[],step:1,dRows:0,dCols:0,dGrid:null};
+const HEADER_KEYS=new Set(['ncols','nrows','xllcorner','yllcorner','xllcenter','yllcenter','cellsize','dx','dy','nodata_value','nodata']);
 
 function parseASC(text){
-  const lines = text.split(/\r?\n/); const header = {}; let dataStart = 0;
-  for (let i=0;i<lines.length;i++){
-    const t = lines[i].trim(); if (!t) continue;
-    const p = t.split(/\s+/); const k = p[0].toLowerCase(); const v = parseFloat(p[1]);
-    if (HEADER_KEYS.has(k) && p.length>=2 && isFinite(v)) { header[k]=v; dataStart=i+1; } else break;
-  }
-  const ncols = header.ncols|0, nrows = header.nrows|0;
-  if (!ncols || !nrows) throw new Error('Missing ncols/nrows');
-  const cellX = header.cellsize ?? header.dx ?? 1;
-  const cellY = header.cellsize ?? header.dy ?? 1;
-  let xll = header.xllcorner ?? header.xllcenter ?? 0;
-  let yll = header.yllcorner ?? header.yllcenter ?? 0;
-  if (header.xllcorner===undefined && header.xllcenter!==undefined) xll -= cellX/2;
-  if (header.yllcorner===undefined && header.yllcenter!==undefined) yll -= cellY/2;
-  const nodata = header.nodata_value ?? header.nodata ?? -9999;
-  const toks = lines.slice(dataStart).join(' ').split(/[\s,]+/);
-  const grid = new Float32Array(nrows*ncols); let k=0;
-  for (let i=0;i<toks.length && k<grid.length;i++){
-    const s = toks[i]; if (!s) continue;
-    const v = parseFloat(s);
-    grid[k++] = (isNaN(v) || Math.abs(v-nodata)<1e-3) ? NaN : v;
-  }
-  while (k<grid.length) grid[k++]=NaN;
-  return { grid, nrows, ncols, cellX, cellY };
+const lines=text.split(/\r?\n/);const header={};let dataStart=0;
+for(let i=0;i<lines.length;i++){const t=lines[i].trim();if(!t)continue;const p=t.split(/\s+/);const k=p[0].toLowerCase();const v=parseFloat(p[1]);if(HEADER_KEYS.has(k)&&p.length>=2&&isFinite(v)){header[k]=v;dataStart=i+1}else break}
+const ncols=header.ncols|0,nrows=header.nrows|0;if(!ncols||!nrows)throw new Error('Missing ncols/nrows');
+const cellX=header.cellsize??header.dx??1, cellY=header.cellsize??header.dy??1;
+let xll=header.xllcorner??header.xllcenter??0, yll=header.yllcorner??header.yllcenter??0;
+if(header.xllcorner===undefined&&header.xllcenter!==undefined)xll-=cellX/2;
+if(header.yllcorner===undefined&&header.yllcenter!==undefined)yll-=cellY/2;
+const nodata=header.nodata_value??header.nodata??-9999;
+const toks=lines.slice(dataStart).join(' ').split(/[\s,]+/);
+const grid=new Float32Array(nrows*ncols);let k=0;
+for(let i=0;i<toks.length&&k<grid.length;i++){const s=toks[i];if(!s)continue;const v=parseFloat(s);grid[k++]=(isNaN(v)||Math.abs(v-nodata)<1e-3)?NaN:v}
+while(k<grid.length)grid[k++]=NaN;
+return{grid,nrows,ncols,cellX,cellY};
 }
 
 function cmap(t){
-  const s=[[0,36,70,128],[0.25,70,160,92],[0.5,222,212,142],[0.75,152,112,86],[1,250,250,252]];
-  t = Math.max(0, Math.min(1, t));
-  let a=s[0], b=s[s.length-1];
-  for (let i=0;i<s.length-1;i++) if (t>=s[i][0] && t<=s[i+1][0]) { a=s[i]; b=s[i+1]; break; }
-  const f = (t-a[0]) / ((b[0]-a[0])||1);
-  return [Math.round(a[1]+f*(b[1]-a[1])), Math.round(a[2]+f*(b[2]-a[2])), Math.round(a[3]+f*(b[3]-a[3]))];
+const s=[[0,36,70,128],[0.25,70,160,92],[0.5,222,212,142],[0.75,152,112,86],[1,250,250,252]];
+t=Math.max(0,Math.min(1,t));let a=s[0],b=s[s.length-1];
+for(let i=0;i<s.length-1;i++)if(t>=s[i][0]&&t<=s[i+1][0]){a=s[i];b=s[i+1];break}
+const f=(t-a[0])/((b[0]-a[0])||1);
+return[Math.round(a[1]+f*(b[1]-a[1])),Math.round(a[2]+f*(b[2]-a[2])),Math.round(a[3]+f*(b[3]-a[3]))];
 }
 
 function buildDisplay(){
-  if (!S.grid) return;
-  const maxSide = 1400;
-  const step = Math.max(1, Math.ceil(Math.max(S.nrows, S.ncols) / maxSide));
-  S.step = step;
-  S.dRows = Math.ceil(S.nrows/step);
-  S.dCols = Math.ceil(S.ncols/step);
-  const dG = new Float32Array(S.dRows * S.dCols);
-  for (let y=0;y<S.dRows;y++) for (let x=0;x<S.dCols;x++){
-    const y0=y*step, y1=Math.min(y0+step,S.nrows);
-    const x0=x*step, x1=Math.min(x0+step,S.ncols);
-    let sum=0,n=0;
-    for (let j=y0;j<y1;j++) for (let i=x0;i<x1;i++){ const v=S.grid[j*S.ncols+i]; if(!isNaN(v)){sum+=v;n++;} }
-    dG[y*S.dCols+x] = n ? sum/n : NaN;
-  }
-  S.dGrid = dG;
-  canvas.width = S.dCols; canvas.height = S.dRows;
-  const stage = $('stage');
-  const aw = stage.clientWidth-20, ah = stage.clientHeight-20;
-  const ar = S.dCols / S.dRows;
-  let w=aw, h=aw/ar; if (h>ah){h=ah;w=ah*ar;}
-  canvas.style.width = Math.floor(w)+'px';
-  canvas.style.height = Math.floor(h)+'px';
-  draw();
+if(!S.grid)return;
+const maxSide=1400;
+const step=Math.max(1,Math.ceil(Math.max(S.nrows,S.ncols)/maxSide));
+S.step=step;S.dRows=Math.ceil(S.nrows/step);S.dCols=Math.ceil(S.ncols/step);
+const dG=new Float32Array(S.dRows*S.dCols);
+for(let y=0;y<S.dRows;y++)for(let x=0;x<S.dCols;x++){
+const y0=y*step,y1=Math.min(y0+step,S.nrows),x0=x*step,x1=Math.min(x0+step,S.ncols);
+let sum=0,n=0;
+for(let j=y0;j<y1;j++)for(let i=x0;i<x1;i++){const v=S.grid[j*S.ncols+i];if(!isNaN(v)){sum+=v;n++}}
+dG[y*S.dCols+x]=n?sum/n:NaN;
+}
+S.dGrid=dG;
+canvas.width=S.dCols;canvas.height=S.dRows;
+const stage=$('stage');
+const aw=stage.clientWidth-20, ah=stage.clientHeight-20;
+const ar=S.dCols/S.dRows;
+let w=aw,h=aw/ar;if(h>ah){h=ah;w=ah*ar}
+canvas.style.width=Math.floor(w)+'px';
+canvas.style.height=Math.floor(h)+'px';
+draw();
 }
 
 function draw(){
-  if (!S.dGrid) return;
-  const img = ctx.createImageData(S.dCols, S.dRows);
-  const d = img.data;
-  const range = (S.maxZ - S.minZ) || 1;
-  for (let i=0;i<S.dRows*S.dCols;i++){
-    const v = S.dGrid[i];
-    let r=12,g=14,b=20;
-    if (!isNaN(v)){ const c=cmap((v-S.minZ)/range); r=c[0];g=c[1];b=c[2]; }
-    const o=i*4; d[o]=r; d[o+1]=g; d[o+2]=b; d[o+3]=255;
-  }
-  ctx.putImageData(img, 0, 0);
-  if (!S.points.length) return;
-  ctx.lineWidth = Math.max(2, S.dCols/500);
-  ctx.strokeStyle = '#38bdf8';
-  if (S.mode==='distance' && S.points.length===2){
-    ctx.beginPath(); ctx.moveTo(S.points[0].x, S.points[0].y); ctx.lineTo(S.points[1].x, S.points[1].y); ctx.stroke();
-  } else if (S.mode==='area' && S.points.length>=3){
-    ctx.beginPath(); ctx.moveTo(S.points[0].x, S.points[0].y);
-    for (let i=1;i<S.points.length;i++) ctx.lineTo(S.points[i].x, S.points[i].y);
-    ctx.closePath();
-    ctx.fillStyle = 'rgba(34,211,238,0.25)'; ctx.fill(); ctx.stroke();
-  } else if (S.points.length>1){
-    ctx.beginPath(); ctx.moveTo(S.points[0].x, S.points[0].y);
-    for (let i=1;i<S.points.length;i++) ctx.lineTo(S.points[i].x, S.points[i].y);
-    ctx.stroke();
-  }
-  for (const p of S.points){
-    ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(4, S.dCols/200), 0, Math.PI*2);
-    ctx.fillStyle = '#f43f5e'; ctx.fill();
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
-  }
+if(!S.dGrid)return;
+const img=ctx.createImageData(S.dCols,S.dRows);const d=img.data;
+const range=(S.maxZ-S.minZ)||1;
+for(let i=0;i<S.dRows*S.dCols;i++){
+const v=S.dGrid[i];let r=12,g=14,b=20;
+if(!isNaN(v)){const c=cmap((v-S.minZ)/range);r=c[0];g=c[1];b=c[2]}
+const o=i*4;d[o]=r;d[o+1]=g;d[o+2]=b;d[o+3]=255;
+}
+ctx.putImageData(img,0,0);
+if(!S.points.length)return;
+ctx.lineWidth=Math.max(2,S.dCols/500);
+ctx.strokeStyle='#38bdf8';
+if(S.mode==='distance'&&S.points.length===2){
+ctx.beginPath();ctx.moveTo(S.points[0].x,S.points[0].y);ctx.lineTo(S.points[1].x,S.points[1].y);ctx.stroke();
+}else if(S.mode==='area'&&S.points.length>=3){
+ctx.beginPath();ctx.moveTo(S.points[0].x,S.points[0].y);
+for(let i=1;i<S.points.length;i++)ctx.lineTo(S.points[i].x,S.points[i].y);
+ctx.closePath();ctx.fillStyle='rgba(34,211,238,0.25)';ctx.fill();ctx.stroke();
+}else if(S.points.length>1){
+ctx.beginPath();ctx.moveTo(S.points[0].x,S.points[0].y);
+for(let i=1;i<S.points.length;i++)ctx.lineTo(S.points[i].x,S.points[i].y);
+ctx.stroke();
+}
+for(const p of S.points){
+ctx.beginPath();ctx.arc(p.x,p.y,Math.max(4,S.dCols/200),0,Math.PI*2);
+ctx.fillStyle='#f43f5e';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.stroke();
+}
 }
 
-function updateResult(){
-  const r = $('result');
-  if (!S.grid){ r.textContent = 'Load a .asc file to begin.'; return; }
-  const sx = S.cellX * S.step, sy = S.cellY * S.step;
-  if (S.mode==='distance'){
-    if (S.points.length===2){
-      const dx = (S.points[1].x - S.points[0].x) * sx;
-      const dy = (S.points[1].y - S.points[0].y) * sy;
-      const d = Math.hypot(dx, dy);
-      r.innerHTML = `Distance: <b>${d.toFixed(2)} m</b> &nbsp;(${(d/1000).toFixed(3)} km / ${(d*0.000621371).toFixed(3)} mi)<br>Δx ${dx.toFixed(1)} m, Δy ${dy.toFixed(1)} m`;
-    } else r.textContent = `Distance mode: ${S.points.length}/2 points. Tap on the map.`;
-  } else {
-    if (S.points.length>=3){
-      let a2 = 0;
-      for (let i=0;i<S.points.length;i++){
-        const a = S.points[i], b = S.points[(i+1)%S.points.length];
-        a2 += (a.x*sx)*(b.y*sy) - (b.x*sx)*(a.y*sy);
-      }
-      const m2 = Math.abs(a2)/2;
-      r.innerHTML = `Area: <b>${m2.toFixed(1)} m²</b> &nbsp;(${(m2/10000).toFixed(4)} ha / ${(m2/4046.8564224).toFixed(3)} ac / ${(m2/1e6).toFixed(6)} km²)<br>${S.points.length} vertices`;
-    } else r.textContent = `Area mode: ${S.points.length}/6 points (need at least 3).`;
-  }
+const FT_PER_M=3.280839895;
+const MI_PER_M=0.000621371192;
+const AC_PER_M2=0.000247105381;
+const HA_PER_M2=0.0001;
+const FT2_PER_M2=10.7639104;
+const MI2_PER_M2=3.86102159e-7;
+
+function updateResults(){
+$('pMode').textContent=S.mode==='area'?'Area':'Distance';
+const max=S.mode==='area'?6:2;
+$('pCount').textContent=`${S.points.length} / ${max}`;
+const res=$('pRes'), rows=$('pRows');
+if(!S.grid){$('pResTitle').textContent='Result';res.textContent='—';rows.innerHTML='';return}
+const sx=S.cellX*S.step, sy=S.cellY*S.step;
+if(S.mode==='distance'){
+$('pResTitle').textContent='Distance';
+if(S.points.length===2){
+const dx=(S.points[1].x-S.points[0].x)*sx;
+const dy=(S.points[1].y-S.points[0].y)*sy;
+const d=Math.hypot(dx,dy);
+res.textContent=d.toFixed(2)+' m';
+rows.innerHTML=
+`<div class="row"><span>Kilometers</span><span>${(d/1000).toFixed(4)} km</span></div>
+<div class="row"><span>Feet</span><span>${(d*FT_PER_M).toFixed(2)} ft</span></div>
+<div class="row"><span>Miles</span><span>${(d*MI_PER_M).toFixed(4)} mi</span></div>
+<div class="row"><span>Δ X</span><span>${dx.toFixed(2)} m</span></div>
+<div class="row"><span>Δ Y</span><span>${dy.toFixed(2)} m</span></div>`;
+}else{
+res.textContent=S.points.length?'…':'—';
+rows.innerHTML=`<div class="row"><span>Tap point ${S.points.length+1}</span><span>of 2</span></div>`;
+}
+return;
+}
+$('pResTitle').textContent='Area';
+if(S.points.length>=3){
+let a2=0;
+for(let i=0;i<S.points.length;i++){
+const a=S.points[i], b=S.points[(i+1)%S.points.length];
+a2+=(a.x*sx)*(b.y*sy)-(b.x*sx)*(a.y*sy);
+}
+const m2=Math.abs(a2)/2;
+res.textContent=m2.toFixed(2)+' m²';
+rows.innerHTML=
+`<div class="row"><span>Hectares</span><span>${(m2*HA_PER_M2).toFixed(4)} ha</span></div>
+<div class="row"><span>Acres</span><span>${(m2*AC_PER_M2).toFixed(4)} ac</span></div>
+<div class="row"><span>Square km</span><span>${(m2/1e6).toFixed(6)} km²</span></div>
+<div class="row"><span>Square feet</span><span>${(m2*FT2_PER_M2).toFixed(1)} ft²</span></div>
+<div class="row"><span>Square miles</span><span>${(m2*MI2_PER_M2).toExponential(3)} mi²</span></div>
+<div class="row"><span>Vertices</span><span>${S.points.length}</span></div>`;
+}else{
+res.textContent=S.points.length?'…':'—';
+rows.innerHTML=`<div class="row"><span>Tap point ${S.points.length+1}</span><span>of 6 (min 3)</span></div>`;
+}
 }
 
-function clearAll(){ S.points = []; draw(); updateResult(); }
-function setMode(m){ S.mode = m; $('areaBtn').classList.toggle('active', m==='area'); $('distBtn').classList.toggle('active', m==='distance'); clearAll(); }
-function setLocked(v){ S.locked = v; $('lockBtn').textContent = v ? '🔓 Unlock' : '🔒 Lock'; $('lockBtn').classList.toggle('active', v); }
+function clearAll(){S.points=[];draw();updateResults();$('status').textContent='Cleared.'}
+function setMode(m){
+S.mode=m;
+$('areaBtn').classList.toggle('active',m==='area');
+$('distBtn').classList.toggle('active',m==='distance');
+S.points=[];draw();updateResults();
+$('status').textContent=m==='area'?'Area mode: tap 3–6 points.':'Distance mode: tap 2 points.';
+}
+function setLocked(v){
+S.locked=v;
+$('lockBtn').textContent=v?'🔓 Unlock':'🔒 Lock';
+$('lockBtn').classList.toggle('active',v);
+}
 
-let _lastTap = 0;
-canvas.addEventListener('pointerdown', e => {
-  if (!S.grid) return;
-  if (S.locked){ $('result').textContent = 'Map is locked. Tap Unlock to add points.'; return; }
-  const now = Date.now();
-  if (now - _lastTap < 120) return;   // ignore duplicate from mobile double-fire
-  _lastTap = now;
-  e.preventDefault();
-  const rect = canvas.getBoundingClientRect();
-  const x = (e.clientX - rect.left) * (canvas.width / rect.width);
-  const y = (e.clientY - rect.top) * (canvas.height / rect.height);
-  const max = S.mode === 'area' ? 6 : 2;
-  if (S.points.length >= max) S.points = [];   // start a fresh measurement instead of blocking
-  S.points.push({ x, y });
-  draw(); updateResult();
+let _lastTap=0;
+canvas.addEventListener('pointerdown',e=>{
+if(!S.grid){$('status').textContent='Load an .asc file first.';return}
+if(S.locked){$('status').textContent='Locked. Tap Unlock to add points.';return}
+const now=Date.now();
+if(now-_lastTap<120)return;
+_lastTap=now;
+e.preventDefault();
+const rect=canvas.getBoundingClientRect();
+const x=(e.clientX-rect.left)*(canvas.width/rect.width);
+const y=(e.clientY-rect.top)*(canvas.height/rect.height);
+const max=S.mode==='area'?6:2;
+if(S.points.length>=max)S.points=[];
+S.points.push({x,y});
+draw();updateResults();
 });
 
-$('loadBtn').onclick = () => $('fileInput').click();
-$('fileInput').onchange = async e => {
-  const f = e.target.files[0]; if (!f) return;
-  $('result').textContent = '⏳ Parsing file…';
-  try {
-    const text = await f.text();
-    const parsed = parseASC(text);
-    S.grid = parsed.grid; S.nrows = parsed.nrows; S.ncols = parsed.ncols;
-    S.cellX = parsed.cellX; S.cellY = parsed.cellY;
-    let mn = Infinity, mx = -Infinity;
-    for (let i=0;i<parsed.grid.length;i++){ const v = parsed.grid[i]; if (isNaN(v)) continue; if (v<mn) mn=v; if (v>mx) mx=v; }
-    S.minZ = mn; S.maxZ = mx; S.points = [];
-    $('fileInfo').textContent = `${f.name} · ${parsed.ncols}×${parsed.nrows} · cell ${parsed.cellX}×${parsed.cellY}`;
-    buildDisplay(); updateResult();
-  } catch(err){ console.error(err); $('result').textContent = 'Error: ' + err.message; }
+$('loadBtn').onclick=()=>$('fileInput').click();
+$('fileInput').onchange=async e=>{
+const f=e.target.files[0];if(!f)return;
+$('status').textContent='⏳ Parsing file…';
+try{
+const text=await f.text();
+const parsed=parseASC(text);
+S.grid=parsed.grid;S.nrows=parsed.nrows;S.ncols=parsed.ncols;S.cellX=parsed.cellX;S.cellY=parsed.cellY;
+let mn=Infinity,mx=-Infinity;
+for(let i=0;i<parsed.grid.length;i++){const v=parsed.grid[i];if(isNaN(v))continue;if(v<mn)mn=v;if(v>mx)mx=v}
+S.minZ=mn;S.maxZ=mx;S.points=[];
+$('fileInfo').textContent=`${f.name} · ${parsed.ncols}×${parsed.nrows} · cell ${parsed.cellX}×${parsed.cellY} m`;
+buildDisplay();updateResults();
+$('status').textContent=`Loaded. ${S.locked?'Tap Unlock to start.':'Tap the map to add points.'}`;
+}catch(err){console.error(err);$('status').textContent='Error: '+err.message}
 };
-$('lockBtn').onclick = () => setLocked(!S.locked);
-$('areaBtn').onclick = () => setMode('area');
-$('distBtn').onclick = () => setMode('distance');
-$('clearBtn').onclick = clearAll;
+$('lockBtn').onclick=()=>{setLocked(!S.locked);$('status').textContent=S.locked?'Locked.':'Unlocked — tap the map.'};
+$('areaBtn').onclick=()=>setMode('area');
+$('distBtn').onclick=()=>setMode('distance');
+$('clearBtn').onclick=clearAll;
 
-setMode('area');
+setMode('distance');
 setLocked(true);
 </script>
 </body>
