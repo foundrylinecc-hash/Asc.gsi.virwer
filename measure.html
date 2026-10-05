@@ -19,18 +19,23 @@ html,body{height:100%;margin:0;font-family:ui-sans-serif,system-ui,sans-serif;ba
 #main{flex:1;min-height:0;display:flex}
 #stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:10px;overflow:hidden;background:#070d18}
 #canvas{max-width:100%;max-height:100%;border:1px solid #2b3b58;border-radius:6px;background:#070d18;touch-action:none;cursor:crosshair}
-#panel{flex:0 0 250px;background:#152238;border-left:1px solid #2b3b58;padding:12px;overflow-y:auto;font-size:12.5px}
+#panel{flex:0 0 260px;background:#152238;border-left:1px solid #2b3b58;padding:12px;overflow-y:auto;font-size:12.5px}
 #panel h2{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:#8fa3c0;margin:0 0 8px;font-weight:700}
-#panel .sect{margin-bottom:16px}
-#panel .big{font-size:19px;color:#22d3ee;font-weight:700;margin:2px 0 8px;word-break:break-all}
+#panel .sect{margin-bottom:14px}
 #panel .row{display:flex;justify-content:space-between;padding:3px 0;gap:8px}
 #panel .row span:first-child{color:#8fa3c0}
 #panel .row span:last-child{font-variant-numeric:tabular-nums;text-align:right}
 #status{padding:8px 12px;background:#152238;border-top:1px solid #2b3b58;font-size:12px;min-height:18px}
 #fileInput{display:none}
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:4px}
+.tile{background:#0f1a2e;border:1px solid #2b3b58;border-radius:8px;padding:9px 11px;min-width:0}
+.tile .v{font-size:16px;font-weight:700;color:#22d3ee;line-height:1.15;word-break:break-word}
+.tile .l{font-size:10px;color:#8fa3c0;margin-top:3px;text-transform:uppercase;letter-spacing:.6px}
+.tile.main{grid-column:1/-1;background:linear-gradient(135deg,#0f2942,#0d1f36);border-color:#1d4f6b}
+.tile.main .v{font-size:26px;color:#67e8f9}
 @media (max-width:700px){
   #main{flex-direction:column}
-  #panel{flex:0 0 auto;border-left:none;border-top:1px solid #2b3b58;max-height:45%}
+  #panel{flex:0 0 auto;border-left:none;border-top:1px solid #2b3b58;max-height:50%}
 }
 </style>
 </head>
@@ -59,7 +64,6 @@ html,body{height:100%;margin:0;font-family:ui-sans-serif,system-ui,sans-serif;ba
 </div>
 <div class="sect">
 <h2 id="pResTitle">Distance</h2>
-<div class="big" id="pRes">—</div>
 <div id="pRows"></div>
 </div>
 </aside>
@@ -150,39 +154,35 @@ ctx.fillStyle='#f43f5e';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.st
 }
 }
 
-const FT_PER_M=3.280839895;
-const MI_PER_M=0.000621371192;
-const AC_PER_M2=0.000247105381;
-const HA_PER_M2=0.0001;
-const FT2_PER_M2=10.7639104;
-const MI2_PER_M2=3.86102159e-7;
-
 function updateResults(){
 $('pMode').textContent=S.mode==='area'?'Area':'Distance';
 const max=S.mode==='area'?6:2;
 $('pCount').textContent=`${S.points.length} / ${max}`;
 const res=$('pRes'), rows=$('pRows');
-if(!S.grid){$('pResTitle').textContent='Result';res.textContent='—';rows.innerHTML='';return}
+if(!S.grid){$('pResTitle').textContent='Result';rows.innerHTML='<div class="tiles"><div class="tile main"><div class="v">—</div><div class="l">Load an .asc file</div></div></div>';return}
 const sx=S.cellX*S.step, sy=S.cellY*S.step;
+
 if(S.mode==='distance'){
 $('pResTitle').textContent='Distance';
 if(S.points.length===2){
 const dx=(S.points[1].x-S.points[0].x)*sx;
 const dy=(S.points[1].y-S.points[0].y)*sy;
 const d=Math.hypot(dx,dy);
-res.textContent=d.toFixed(2)+' m';
 rows.innerHTML=
-`<div class="row"><span>Kilometers</span><span>${(d/1000).toFixed(4)} km</span></div>
-<div class="row"><span>Feet</span><span>${(d*FT_PER_M).toFixed(2)} ft</span></div>
-<div class="row"><span>Miles</span><span>${(d*MI_PER_M).toFixed(4)} mi</span></div>
-<div class="row"><span>Δ X</span><span>${dx.toFixed(2)} m</span></div>
-<div class="row"><span>Δ Y</span><span>${dy.toFixed(2)} m</span></div>`;
+`<div class="tiles">
+<div class="tile main"><div class="v">${d.toFixed(2)} m</div><div class="l">Meters</div></div>
+<div class="tile"><div class="v">${(d/1000).toFixed(4)}</div><div class="l">Kilometers</div></div>
+<div class="tile"><div class="v">${(d*3.280839895).toFixed(1)}</div><div class="l">Feet</div></div>
+<div class="tile"><div class="v">${(d*0.000621371192).toFixed(4)}</div><div class="l">Miles</div></div>
+<div class="tile"><div class="v">${dx.toFixed(1)}</div><div class="l">ΔX (m)</div></div>
+<div class="tile"><div class="v">${dy.toFixed(1)}</div><div class="l">ΔY (m)</div></div>
+</div>`;
 }else{
-res.textContent=S.points.length?'…':'—';
-rows.innerHTML=`<div class="row"><span>Tap point ${S.points.length+1}</span><span>of 2</span></div>`;
+rows.innerHTML=`<div class="tiles"><div class="tile main"><div class="v">Tap point ${S.points.length+1} of 2</div><div class="l">Click on the terrain</div></div></div>`;
 }
 return;
 }
+
 $('pResTitle').textContent='Area';
 if(S.points.length>=3){
 let a2=0;
@@ -191,17 +191,18 @@ const a=S.points[i], b=S.points[(i+1)%S.points.length];
 a2+=(a.x*sx)*(b.y*sy)-(b.x*sx)*(a.y*sy);
 }
 const m2=Math.abs(a2)/2;
-res.textContent=m2.toFixed(2)+' m²';
 rows.innerHTML=
-`<div class="row"><span>Hectares</span><span>${(m2*HA_PER_M2).toFixed(4)} ha</span></div>
-<div class="row"><span>Acres</span><span>${(m2*AC_PER_M2).toFixed(4)} ac</span></div>
-<div class="row"><span>Square km</span><span>${(m2/1e6).toFixed(6)} km²</span></div>
-<div class="row"><span>Square feet</span><span>${(m2*FT2_PER_M2).toFixed(1)} ft²</span></div>
-<div class="row"><span>Square miles</span><span>${(m2*MI2_PER_M2).toExponential(3)} mi²</span></div>
-<div class="row"><span>Vertices</span><span>${S.points.length}</span></div>`;
+`<div class="tiles">
+<div class="tile main"><div class="v">${m2.toFixed(2)} m²</div><div class="l">Square meters</div></div>
+<div class="tile"><div class="v">${(m2*0.0001).toFixed(4)}</div><div class="l">Hectares</div></div>
+<div class="tile"><div class="v">${(m2*0.000247105381).toFixed(4)}</div><div class="l">Acres</div></div>
+<div class="tile"><div class="v">${(m2/1e6).toFixed(6)}</div><div class="l">Square km</div></div>
+<div class="tile"><div class="v">${(m2*10.7639104).toFixed(0)}</div><div class="l">Square ft</div></div>
+<div class="tile"><div class="v">${(m2*3.86102159e-7).toExponential(2)}</div><div class="l">Square mi</div></div>
+<div class="tile"><div class="v">${S.points.length}</div><div class="l">Vertices</div></div>
+</div>`;
 }else{
-res.textContent=S.points.length?'…':'—';
-rows.innerHTML=`<div class="row"><span>Tap point ${S.points.length+1}</span><span>of 6 (min 3)</span></div>`;
+rows.innerHTML=`<div class="tiles"><div class="tile main"><div class="v">Tap point ${S.points.length+1} of 6</div><div class="l">Minimum 3 to compute</div></div></div>`;
 }
 }
 
