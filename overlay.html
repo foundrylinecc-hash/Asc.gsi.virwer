@@ -1,242 +1,273 @@
 <!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DEM Map Overlay</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>DEM 3D Overlay</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <style>
-html,body,#map{height:100%;margin:0;font-family:ui-sans-serif,system-ui,sans-serif}
+html,body,#map{height:100%;margin:0;font-family:ui-sans-serif,system-ui,sans-serif;overflow:hidden}
 #map{background:#070d18}
 #topbar{position:absolute;top:0;left:0;right:0;z-index:1000;background:rgba(21,34,56,.95);border-bottom:1px solid #2b3b58;padding:8px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;color:#e6edf7;font-size:12px}
 #topbar a{color:#38bdf8;text-decoration:none;padding:4px 8px;border:1px solid #2b3b58;border-radius:5px}
 #topbar h1{font-size:14px;margin:0;font-weight:600}
 #topbar .info{margin-left:auto;color:#8fa3c0;font-size:11px}
-#panel{position:absolute;top:56px;left:12px;z-index:1000;background:rgba(21,34,56,.95);border:1px solid #2b3b58;border-radius:8px;padding:10px;color:#e6edf7;font-size:12px;width:230px;display:flex;flex-direction:column;gap:8px}
+#panel{position:absolute;top:56px;left:12px;z-index:1000;background:rgba(21,34,56,.95);border:1px solid #2b3b58;border-radius:8px;padding:10px;color:#e6edf7;font-size:12px;width:245px;display:flex;flex-direction:column;gap:8px;max-height:calc(100% - 100px);overflow-y:auto}
 #panel .row{display:flex;gap:6px;align-items:center}
 #panel button{padding:6px 10px;border:1px solid #2b3b58;border-radius:6px;background:#22304a;color:#e6edf7;cursor:pointer;font-size:12px}
 #panel button:hover{background:#2c3d5c}
 #panel button.primary{background:linear-gradient(135deg,#0ea5e9,#0284c7);border-color:#0ea5e9;color:#001}
 #panel select{flex:1;background:#0f1a2e;color:#e6edf7;border:1px solid #2b3b58;border-radius:5px;padding:5px;font-size:12px;outline:none}
 #panel input[type=range]{flex:1;accent-color:#38bdf8}
-#panel label{color:#8fa3c0;font-size:11px;min-width:52px}
-#panel .val{color:#22d3ee;font-variant-numeric:tabular-nums;min-width:32px;text-align:right;font-size:11px}
+#panel label{color:#8fa3c0;font-size:11px;min-width:54px}
+#panel .val{color:#22d3ee;font-variant-numeric:tabular-nums;min-width:38px;text-align:right;font-size:11px}
 #status{position:absolute;bottom:0;left:0;right:0;z-index:1000;background:rgba(21,34,56,.95);border-top:1px solid #2b3b58;padding:8px 12px;color:#e6edf7;font-size:12px;min-height:18px}
-#toggle{position:absolute;top:56px;left:12px;z-index:1001;background:#22304a;color:#e6edf7;border:1px solid #2b3b58;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;display:none}
-.hidden{display:none!important}
 </style></head><body>
 <div id="map"></div>
 <div id="topbar">
-<a href="./">← ASC Viewer</a>
+<a href="./">← Viewer</a>
 <a href="./measure.html">📏 Measure</a>
-<h1>🗺️ DEM Overlay</h1>
+<h1>🗺️ DEM 3D Overlay</h1>
 <span class="info" id="fileInfo">No file loaded</span>
 </div>
-<button id="toggle">☰ Controls</button>
 <div id="panel">
 <div class="row"><button class="primary" id="loadAsc">📂 Load .asc</button><button id="loadPrj">📐 .prj</button></div>
 <input type="file" id="fileInput" accept=".asc,.txt,.grd,.dem" hidden>
 <input type="file" id="fileInput2" accept=".prj,.wkt" hidden>
-<div class="row"><label>Base</label><select id="baseSel">
-<option value="sat">Satellite</option>
-<option value="osm">Streets</option>
-<option value="topo">Topographic</option>
-<option value="none">None</option>
-</select></div>
-<div class="row"><label>Color</label><select id="colorSel">
-<option value="elevation">Elevation + relief</option>
-<option value="hillshade">Hillshade</option>
-<option value="slope">Slope</option>
-</select></div>
-<div class="row"><label>Opacity</label><input type="range" id="opacity" min="5" max="100" value="70"><span class="val" id="opVal">70%</span></div>
-<div class="row"><button id="fitBtn" style="flex:1">🎯 Fit to DEM</button><button id="closeBtn" style="flex:0 0 auto">×</button></div>
+<div class="row"><label>Base</label><select id="baseSel"><option value="sat">Satellite</option><option value="topo">Topographic</option><option value="osm">Streets</option></select></div>
+<div class="row"><label>Color</label><select id="colorSel"><option value="elevation">Elevation + relief</option><option value="hillshade">Hillshade</option><option value="slope">Slope</option></select></div>
+<div class="row"><label>Opacity</label><input type="range" id="opacity" min="5" max="100" value="75"><span class="val" id="opVal">75%</span></div>
+<div class="row"><label>Pitch</label><input type="range" id="pitch" min="0" max="85" value="0"><span class="val" id="pitchVal">0°</span></div>
+<div class="row"><label>Bearing</label><input type="range" id="bearing" min="0" max="360" value="0"><span class="val" id="bearingVal">0°</span></div>
+<div class="row"><button id="resetView" style="flex:1">↺ Reset</button><button id="fitBtn" style="flex:1">🎯 Fit DEM</button></div>
+<p style="margin:4px 0 0;color:#8fa3c0;font-size:10.5px;line-height:1.4">Two-finger drag = tilt + rotate. Right-drag = rotate (desktop).</p>
 </div>
 <div id="status">Load a .asc + .prj to overlay on satellite imagery.</div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 const HEADER_KEYS=new Set(['ncols','nrows','xllcorner','yllcorner','xllcenter','yllcenter','cellsize','dx','dy','nodata_value','nodata']);
-let S={asc:null,prj:null,overlay:null,bounds:null,map:null,baseLayer:null};
+let map,S={asc:null,prj:null,demUrl:null,bounds:null};
+
+const TILES={
+sat:['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}','Tiles © Esri'],
+topo:['https://a.tile.opentopomap.org/{z}/{x}/{y}.png','© OpenTopoMap'],
+osm:['https://tile.openstreetmap.org/{z}/{x}/{y}.png','© OpenStreetMap']
+};
+
+function makeStyle(){
+const s={version:8,sources:{},layers:[]};
+for(const k in TILES){
+s.sources[k]={type:'raster',tiles:[TILES[k][0]],tileSize:256,attribution:TILES[k][1]};
+s.layers.push({id:'base-'+k,type:'raster',source:k,layout:{visibility:k==='sat'?'visible':'none'}});
+}
+return s;
+}
 
 function parseASC(text){
-  const lines=text.split(/\r?\n/);const h={};let ds=0;
-  for(let i=0;i<lines.length;i++){const t=lines[i].trim();if(!t)continue;const p=t.split(/\s+/);const k=p[0].toLowerCase();const v=parseFloat(p[1]);if(HEADER_KEYS.has(k)&&p.length>=2&&isFinite(v)){h[k]=v;ds=i+1}else break}
-  const nc=h.ncols|0,nr=h.nrows|0;if(!nc||!nr)throw new Error('Missing ncols/nrows');
-  const cx=h.cellsize??h.dx??1,cy=h.cellsize??h.dy??1;
-  let x0=h.xllcorner??h.xllcenter??0,y0=h.yllcorner??h.yllcenter??0;
-  if(h.xllcorner===undefined&&h.xllcenter!==undefined)x0-=cx/2;
-  if(h.yllcorner===undefined&&h.yllcenter!==undefined)y0-=cy/2;
-  const nd=h.nodata_value??h.nodata??-9999;
-  const toks=lines.slice(ds).join(' ').split(/[\s,]+/);
-  const grid=new Float32Array(nr*nc);let k=0;
-  for(let i=0;i<toks.length&&k<grid.length;i++){const s=toks[i];if(!s)continue;const v=parseFloat(s);grid[k++]=(isNaN(v)||Math.abs(v-nd)<1e-3)?NaN:v}
-  while(k<grid.length)grid[k++]=NaN;
-  return{grid,nrows:nr,ncols:nc,cellX:cx,cellY:cy,xll:x0,yll:y0};
+const lines=text.split(/\r?\n/);const h={};let ds=0;
+for(let i=0;i<lines.length;i++){const t=lines[i].trim();if(!t)continue;const p=t.split(/\s+/);const k=p[0].toLowerCase();const v=parseFloat(p[1]);if(HEADER_KEYS.has(k)&&p.length>=2&&isFinite(v)){h[k]=v;ds=i+1}else break}
+const nc=h.ncols|0,nr=h.nrows|0;if(!nc||!nr)throw new Error('Missing ncols/nrows');
+const cx=h.cellsize??h.dx??1,cy=h.cellsize??h.dy??1;
+let x0=h.xllcorner??h.xllcenter??0,y0=h.yllcorner??h.yllcenter??0;
+if(h.xllcorner===undefined&&h.xllcenter!==undefined)x0-=cx/2;
+if(h.yllcorner===undefined&&h.yllcenter!==undefined)y0-=cy/2;
+const nd=h.nodata_value??h.nodata??-9999;
+const toks=lines.slice(ds).join(' ').split(/[\s,]+/);
+const grid=new Float32Array(nr*nc);let k=0;
+for(let i=0;i<toks.length&&k<grid.length;i++){const s=toks[i];if(!s)continue;const v=parseFloat(s);grid[k++]=(isNaN(v)||Math.abs(v-nd)<1e-3)?NaN:v}
+while(k<grid.length)grid[k++]=NaN;
+return{grid,nrows:nr,ncols:nc,cellX:cx,cellY:cy,xll:x0,yll:y0};
 }
 
 function parsePRJ(text){
-  const info={name:'Unknown',projection:'Unknown',centralMeridian:null,falseNorthing:0,isUTM:false};
-  let m=text.match(/PROJCS\s*\[\s*"([^"]+)"/i);if(m)info.name=m[1];
-  m=text.match(/PROJECTION\s*\[\s*"([^"]+)"/i);if(m)info.projection=m[1];
-  info.isUTM=/Transverse_Mercator/i.test(text);
-  m=text.match(/PARAMETER\s*\[\s*"central_meridian"\s*,\s*([-\d.eE+]+)/i);
-  if(m)info.centralMeridian=parseFloat(m[1]);
-  m=text.match(/PARAMETER\s*\[\s*"false_northing"\s*,\s*([-\d.eE+]+)/i);
-  if(m)info.falseNorthing=parseFloat(m[1]);
-  return info;
+const info={name:'Unknown',projection:'Unknown',centralMeridian:null,falseNorthing:0,isUTM:false};
+let m=text.match(/PROJCS\s*\[\s*"([^"]+)"/i);if(m)info.name=m[1];
+m=text.match(/PROJECTION\s*\[\s*"([^"]+)"/i);if(m)info.projection=m[1];
+info.isUTM=/Transverse_Mercator/i.test(text);
+m=text.match(/PARAMETER\s*\[\s*"central_meridian"\s*,\s*([-\d.eE+]+)/i);if(m)info.centralMeridian=parseFloat(m[1]);
+m=text.match(/PARAMETER\s*\[\s*"false_northing"\s*,\s*([-\d.eE+]+)/i);if(m)info.falseNorthing=parseFloat(m[1]);
+return info;
 }
 
 function utmToLatLon(E,N,zone,north){
-  const a=6378137,f=1/298.257223563,e2=2*f-f*f,k0=0.9996;
-  const e1=(1-Math.sqrt(1-e2))/(1+Math.sqrt(1-e2));
-  const x=E-500000;let y=N;if(!north)y-=1e7;
-  const M=y/k0,mu=M/(a*(1-e2/4-3*e2*e2/64-5*e2*e2*e2/256));
-  const phi1=mu+(3*e1/2-27*e1*e1*e1/32)*Math.sin(2*mu)+(21*e1*e1/16-55*e1*e1*e1*e1/32)*Math.sin(4*mu)+(151*e1*e1*e1/96)*Math.sin(6*mu);
-  const sp=Math.sin(phi1),cp=Math.cos(phi1),tp=Math.tan(phi1);
-  const N1=a/Math.sqrt(1-e2*sp*sp),T1=tp*tp,C1=e2/(1-e2)*cp*cp,R1=a*(1-e2)/Math.pow(1-e2*sp*sp,1.5);
-  const D=x/(N1*k0);
-  const lat=phi1-(N1*tp/R1)*(D*D/2-(5+3*T1+10*C1-4*C1*C1-9*e2/(1-e2))*D*D*D*D/24+(61+90*T1+298*C1+45*T1*T1-252*e2/(1-e2)-3*C1*C1)*D*D*D*D*D*D/720);
-  const lon=(D-(1+2*T1+C1)*D*D*D/6+(5-2*C1+28*T1-3*C1*C1+8*e2/(1-e2)+24*T1*T1)*D*D*D*D*D/120)/cp;
-  const lon0=((zone-1)*6-180+3)*Math.PI/180;
-  return{lat:lat*180/Math.PI,lon:(lon0+lon)*180/Math.PI};
+const a=6378137,f=1/298.257223563,e2=2*f-f*f,k0=0.9996;
+const e1=(1-Math.sqrt(1-e2))/(1+Math.sqrt(1-e2));
+const x=E-500000;let y=N;if(!north)y-=1e7;
+const M=y/k0,mu=M/(a*(1-e2/4-3*e2*e2/64-5*e2*e2*e2/256));
+const phi1=mu+(3*e1/2-27*e1*e1*e1/32)*Math.sin(2*mu)+(21*e1*e1/16-55*e1*e1*e1*e1/32)*Math.sin(4*mu)+(151*e1*e1*e1/96)*Math.sin(6*mu);
+const sp=Math.sin(phi1),cp=Math.cos(phi1),tp=Math.tan(phi1);
+const N1=a/Math.sqrt(1-e2*sp*sp),T1=tp*tp,C1=e2/(1-e2)*cp*cp,R1=a*(1-e2)/Math.pow(1-e2*sp*sp,1.5);
+const D=x/(N1*k0);
+const lat=phi1-(N1*tp/R1)*(D*D/2-(5+3*T1+10*C1-4*C1*C1-9*e2/(1-e2))*D*D*D*D/24+(61+90*T1+298*C1+45*T1*T1-252*e2/(1-e2)-3*C1*C1)*D*D*D*D*D*D/720);
+const lon=(D-(1+2*T1+C1)*D*D*D/6+(5-2*C1+28*T1-3*C1*C1+8*e2/(1-e2)+24*T1*T1)*D*D*D*D*D/120)/cp;
+const lon0=((zone-1)*6-180+3)*Math.PI/180;
+return{lat:lat*180/Math.PI,lon:(lon0+lon)*180/Math.PI};
 }
+
 const zoneFromCM=cm=>Math.round((cm+183)/6);
 
 function cmapTerrain(t){
-  const s=[[0,36,70,128],[0.25,70,160,92],[0.5,222,212,142],[0.75,152,112,86],[1,250,250,252]];
-  t=Math.max(0,Math.min(1,t));let a=s[0],b=s[s.length-1];
-  for(let i=0;i<s.length-1;i++)if(t>=s[i][0]&&t<=s[i+1][0]){a=s[i];b=s[i+1];break}
-  const f=(t-a[0])/((b[0]-a[0])||1);
-  return[Math.round(a[1]+f*(b[1]-a[1])),Math.round(a[2]+f*(b[2]-a[2])),Math.round(a[3]+f*(b[3]-a[3]))];
+const s=[[0,36,70,128],[0.25,70,160,92],[0.5,222,212,142],[0.75,152,112,86],[1,250,250,252]];
+t=Math.max(0,Math.min(1,t));let a=s[0],b=s[s.length-1];
+for(let i=0;i<s.length-1;i++)if(t>=s[i][0]&&t<=s[i+1][0]){a=s[i];b=s[i+1];break}
+const f=(t-a[0])/((b[0]-a[0])||1);
+return[Math.round(a[1]+f*(b[1]-a[1])),Math.round(a[2]+f*(b[2]-a[2])),Math.round(a[3]+f*(b[3]-a[3]))];
 }
 function cmapMagma(t){
-  const s=[[0,0,0,4],[0.25,81,18,124],[0.5,183,55,121],[0.75,252,137,97],[1,252,253,191]];
-  t=Math.max(0,Math.min(1,t));let a=s[0],b=s[s.length-1];
-  for(let i=0;i<s.length-1;i++)if(t>=s[i][0]&&t<=s[i+1][0]){a=s[i];b=s[i+1];break}
-  const f=(t-a[0])/((b[0]-a[0])||1);
-  return[Math.round(a[1]+f*(b[1]-a[1])),Math.round(a[2]+f*(b[2]-a[2])),Math.round(a[3]+f*(b[3]-a[3]))];
+const s=[[0,0,0,4],[0.25,81,18,124],[0.5,183,55,121],[0.75,252,137,97],[1,252,253,191]];
+t=Math.max(0,Math.min(1,t));let a=s[0],b=s[s.length-1];
+for(let i=0;i<s.length-1;i++)if(t>=s[i][0]&&t<=s[i+1][0]){a=s[i];b=s[i+1];break}
+const f=(t-a[0])/((b[0]-a[0])||1);
+return[Math.round(a[1]+f*(b[1]-a[1])),Math.round(a[2]+f*(b[2]-a[2])),Math.round(a[3]+f*(b[3]-a[3]))];
 }
 function fillNaN(g){
-  const o=Float32Array.from(g);let s=0,n=0;
-  for(let i=0;i<o.length;i++)if(!isNaN(o[i])){s+=o[i];n++}
-  const m=n?s/n:0;
-  for(let i=0;i<o.length;i++)if(isNaN(o[i]))o[i]=m;
-  return o;
+const o=Float32Array.from(g);let s=0,n=0;
+for(let i=0;i<o.length;i++)if(!isNaN(o[i])){s+=o[i];n++}
+const m=n?s/n:0;
+for(let i=0;i<o.length;i++)if(isNaN(o[i]))o[i]=m;
+return o;
 }
 
 function renderDEM(parsed,mode){
-  const{grid,nrows,ncols,cellX,cellY}=parsed;
-  let mn=Infinity,mx=-Infinity;
-  for(let i=0;i<grid.length;i++){const v=grid[i];if(isNaN(v))continue;if(v<mn)mn=v;if(v>mx)mx=v}
-  const range=(mx-mn)||1;
-  const MAX=2048;
-  const step=Math.max(1,Math.ceil(Math.max(nrows,ncols)/MAX));
-  const ow=Math.ceil(ncols/step),oh=Math.ceil(nrows/step);
-  const dG=new Float32Array(ow*oh);
-  for(let y=0;y<oh;y++)for(let x=0;x<ow;x++){
-    const y0=y*step,y1=Math.min(y0+step,nrows),x0=x*step,x1=Math.min(x0+step,ncols);
-    let s=0,n=0;
-    for(let j=y0;j<y1;j++)for(let i=x0;i<x1;i++){const v=grid[j*ncols+i];if(!isNaN(v)){s+=v;n++}}
-    dG[y*ow+x]=n?s/n:NaN;
-  }
-  const z=fillNaN(dG);
-  const shade=new Float32Array(ow*oh),slopeArr=new Float32Array(ow*oh);
-  const cx=cellX*step,cy=cellY*step;
-  const at=(y,x)=>z[Math.max(0,Math.min(oh-1,y))*ow+Math.max(0,Math.min(ow-1,x))];
-  const sunAz=315*Math.PI/180,sunZen=Math.PI/2-45*Math.PI/180;
-  const cZ=Math.cos(sunZen),sZ=Math.sin(sunZen);
-  for(let y=0;y<oh;y++)for(let x=0;x<ow;x++){
-    const a=at(y-1,x-1),b=at(y-1,x),c=at(y-1,x+1),d=at(y,x-1),f=at(y,x+1),g=at(y+1,x-1),h=at(y+1,x),i=at(y+1,x+1);
-    const dx=((c+2*f+i)-(a+2*d+g))/(8*cx);
-    const dy=((a+2*b+c)-(g+2*h+i))/(8*cy);
-    const sl=Math.atan(Math.hypot(dx,dy));
-    const idx=y*ow+x;
-    slopeArr[idx]=sl*180/Math.PI;
-    let asp=Math.atan2(-dx,-dy);if(asp<0)asp+=2*Math.PI;
-    shade[idx]=Math.max(0,Math.min(1,cZ*Math.cos(sl)+sZ*Math.sin(sl)*Math.cos(sunAz-asp)));
-  }
-  const canvas=document.createElement('canvas');
-  canvas.width=ow;canvas.height=oh;
-  const ctx=canvas.getContext('2d');
-  const img=ctx.createImageData(ow,oh);const dd=img.data;
-  for(let i=0;i<ow*oh;i++){
-    const v=dG[i];let r=0,g=0,b=0,al=0;
-    if(!isNaN(v)){
-      al=255;
-      if(mode==='elevation'){
-        const c=cmapTerrain((v-mn)/range);
-        const sh=0.45+0.55*shade[i];
-        r=Math.min(255,c[0]*sh)|0;g=Math.min(255,c[1]*sh)|0;b=Math.min(255,c[2]*sh)|0;
-      }else if(mode==='hillshade'){
-        r=g=b=(shade[i]*255)|0;
-      }else{
-        const c=cmapMagma(Math.max(0,Math.min(1,slopeArr[i]/60)));
-        r=c[0];g=c[1];b=c[2];
-      }
-    }
-    const o=i*4;dd[o]=r;dd[o+1]=g;dd[o+2]=b;dd[o+3]=al;
-  }
-  ctx.putImageData(img,0,0);
-  return{url:canvas.toDataURL('image/png'),minZ:mn,maxZ:mx,ow,oh};
+const{grid,nrows,ncols,cellX,cellY}=parsed;
+let mn=Infinity,mx=-Infinity;
+for(let i=0;i<grid.length;i++){const v=grid[i];if(isNaN(v))continue;if(v<mn)mn=v;if(v>mx)mx=v}
+const range=(mx-mn)||1;
+const MAX=2048;
+const step=Math.max(1,Math.ceil(Math.max(nrows,ncols)/MAX));
+const ow=Math.ceil(ncols/step),oh=Math.ceil(nrows/step);
+const dG=new Float32Array(ow*oh);
+for(let y=0;y<oh;y++)for(let x=0;x<ow;x++){
+const y0=y*step,y1=Math.min(y0+step,nrows),x0=x*step,x1=Math.min(x0+step,ncols);
+let s=0,n=0;
+for(let j=y0;j<y1;j++)for(let i=x0;i<x1;i++){const v=grid[j*ncols+i];if(!isNaN(v)){s+=v;n++}}
+dG[y*ow+x]=n?s/n:NaN;
+}
+const z=fillNaN(dG);
+const shade=new Float32Array(ow*oh),slopeArr=new Float32Array(ow*oh);
+const cx=cellX*step,cy=cellY*step;
+const at=(y,x)=>z[Math.max(0,Math.min(oh-1,y))*ow+Math.max(0,Math.min(ow-1,x))];
+const sunAz=315*Math.PI/180,sunZen=Math.PI/2-45*Math.PI/180;
+const cZ=Math.cos(sunZen),sZ=Math.sin(sunZen);
+for(let y=0;y<oh;y++)for(let x=0;x<ow;x++){
+const a=at(y-1,x-1),b=at(y-1,x),c=at(y-1,x+1),d=at(y,x-1),f=at(y,x+1),g=at(y+1,x-1),h=at(y+1,x),i=at(y+1,x+1);
+const dx=((c+2*f+i)-(a+2*d+g))/(8*cx);
+const dy=((a+2*b+c)-(g+2*h+i))/(8*cy);
+const sl=Math.atan(Math.hypot(dx,dy));
+const idx=y*ow+x;
+slopeArr[idx]=sl*180/Math.PI;
+let asp=Math.atan2(-dx,-dy);if(asp<0)asp+=2*Math.PI;
+shade[idx]=Math.max(0,Math.min(1,cZ*Math.cos(sl)+sZ*Math.sin(sl)*Math.cos(sunAz-asp)));
+}
+const canvas=document.createElement('canvas');
+canvas.width=ow;canvas.height=oh;
+const ctx=canvas.getContext('2d');
+const img=ctx.createImageData(ow,oh);const dd=img.data;
+for(let i=0;i<ow*oh;i++){
+const v=dG[i];let r=0,g=0,b=0,al=0;
+if(!isNaN(v)){
+al=255;
+if(mode==='elevation'){
+const c=cmapTerrain((v-mn)/range);
+const sh=0.45+0.55*shade[i];
+r=Math.min(255,c[0]*sh)|0;g=Math.min(255,c[1]*sh)|0;b=Math.min(255,c[2]*sh)|0;
+}else if(mode==='hillshade'){
+r=g=b=(shade[i]*255)|0;
+}else{
+const c=cmapMagma(Math.max(0,Math.min(1,slopeArr[i]/60)));
+r=c[0];g=c[1];b=c[2];
+}
+}
+const o=i*4;dd[o]=r;dd[o+1]=g;dd[o+2]=b;dd[o+3]=al;
+}
+ctx.putImageData(img,0,0);
+return{url:canvas.toDataURL('image/png'),minZ:mn,maxZ:mx};
 }
 
-function buildBase(url,attr){
-  return L.tileLayer(url,{maxZoom:19,attribution:attr});
+function addDemLayer(){
+if(!S.demUrl||!S.bounds)return;
+if(map.getLayer('dem'))map.removeLayer('dem');
+if(map.getSource('dem'))map.removeSource('dem');
+const[w,s,e,n]=S.bounds;
+map.addSource('dem',{
+type:'image',
+url:S.demUrl,
+coordinates:[[w,n],[e,n],[e,s],[w,s]]
+});
+map.addLayer({
+id:'dem',
+type:'raster',
+source:'dem',
+paint:{
+'raster-opacity':parseInt($('opacity').value)/100,
+'raster-fade-duration':0
+}
+});
 }
 
 async function loadAndOverlay(){
-  if(!S.asc||!S.prj){$('status').textContent='Need both .asc and .prj loaded.';return}
-  $('status').textContent='⏳ Building overlay…';
-  try{
-    const parsed=parseASC(S.asc);
-    const prj=parsePRJ(S.prj);
-    if(!prj.isUTM)throw new Error('Only UTM projections supported. Got: '+prj.projection);
-    if(prj.centralMeridian===null)throw new Error('No central_meridian in .prj');
-    const zone=zoneFromCM(prj.centralMeridian);
-    const north=(prj.falseNorthing===null||prj.falseNorthing===0);
-    const x0=parsed.xll,y0=parsed.yll;
-    const x1=x0+parsed.ncols*parsed.cellX;
-    const y1=y0+parsed.nrows*parsed.cellY;
-    const cSW=utmToLatLon(x0,y0,zone,north);
-    const cNE=utmToLatLon(x1,y1,zone,north);
-    const cSE=utmToLatLon(x1,y0,zone,north);
-    const cNW=utmToLatLon(x0,y1,zone,north);
-    const south=Math.min(cSW.lat,cSE.lat,cNW.lat,cNE.lat);
-    const northL=Math.max(cSW.lat,cSE.lat,cNW.lat,cNE.lat);
-    const west=Math.min(cSW.lon,cSE.lon,cNW.lon,cNE.lon);
-    const east=Math.max(cSW.lon,cSE.lon,cNW.lon,cNE.lon);
-    const out=renderDEM(parsed,$('colorSel').value);
-    if(S.overlay)S.map.removeLayer(S.overlay);
-    S.bounds=[[south,west],[northL,east]];
-    S.overlay=L.imageOverlay(out.url,S.bounds,{opacity:parseInt($('opacity').value)/100,interactive:false}).addTo(S.map);
-    S.map.fitBounds(S.bounds);
-    $('fileInfo').textContent=`${parsed.ncols}×${parsed.nrows} · UTM ${zone}${north?'N':'S'} · ${prj.name}`;
-    $('status').textContent=`Overlay added. Elev ${out.minZ.toFixed(1)}–${out.maxZ.toFixed(1)} m · Bounds ${south.toFixed(4)},${west.toFixed(4)} → ${northL.toFixed(4)},${east.toFixed(4)}`;
-  }catch(err){console.error(err);$('status').textContent='Error: '+err.message}
+if(!S.asc||!S.prj){$('status').textContent='Need both .asc and .prj loaded.';return}
+$('status').textContent='⏳ Building overlay…';
+try{
+const parsed=parseASC(S.asc);
+const prj=parsePRJ(S.prj);
+if(!prj.isUTM)throw new Error('Only UTM supported. Got: '+prj.projection);
+if(prj.centralMeridian===null)throw new Error('No central_meridian in .prj');
+const zone=zoneFromCM(prj.centralMeridian);
+const north=(prj.falseNorthing===null||prj.falseNorthing===0);
+const x0=parsed.xll,y0=parsed.yll;
+const x1=x0+parsed.ncols*parsed.cellX;
+const y1=y0+parsed.nrows*parsed.cellY;
+const cSW=utmToLatLon(x0,y0,zone,north);
+const cNE=utmToLatLon(x1,y1,zone,north);
+const cSE=utmToLatLon(x1,y0,zone,north);
+const cNW=utmToLatLon(x0,y1,zone,north);
+const south=Math.min(cSW.lat,cSE.lat,cNW.lat,cNE.lat);
+const northL=Math.max(cSW.lat,cSE.lat,cNW.lat,cNE.lat);
+const west=Math.min(cSW.lon,cSE.lon,cNW.lon,cNE.lon);
+const east=Math.max(cSW.lon,cSE.lon,cNW.lon,cNE.lon);
+const out=renderDEM(parsed,$('colorSel').value);
+S.demUrl=out.url;
+S.bounds=[west,south,east,northL];
+addDemLayer();
+map.fitBounds([[west,south],[east,northL]],{padding:40,duration:1500,pitch:60,bearing:0,maxZoom:16});
+$('fileInfo').textContent=`${parsed.ncols}×${parsed.nrows} · UTM ${zone}${north?'N':'S'} · ${prj.name}`;
+$('status').textContent=`Overlay added. Elev ${out.minZ.toFixed(1)}–${out.maxZ.toFixed(1)} m · Tilt with two fingers`;
+}catch(err){console.error(err);$('status').textContent='Error: '+err.message}
 }
 
 window.addEventListener('load',()=>{
-  S.map=L.map('map',{center:[39,-98],zoom:4,worldCopyJump:true});
-  S.baseLayer=buildBase('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}','Tiles © Esri').addTo(S.map);
+map=new maplibregl.Map({
+container:'map',
+style:makeStyle(),
+center:[-98,39],
+zoom:3,
+pitch:0,
+bearing:0,
+attributionControl:false
+});
+map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),'top-right');
+map.addControl(new maplibregl.AttributionControl({compact:true}));
+map.on('move',()=>{
+const p=Math.round(map.getPitch());
+let b=Math.round(map.getBearing());
+b=((b%360)+360)%360;
+$('pitch').value=p;$('pitchVal').textContent=p+'°';
+$('bearing').value=b;$('bearingVal').textContent=b+'°';
+});
 
-  $('loadAsc').onclick=()=>$('fileInput').click();
-  $('loadPrj').onclick=()=>$('fileInput2').click();
-  $('fileInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;S.asc=await f.text();$('fileInfo').textContent=f.name+' · reading .prj…';if(S.prj)loadAndOverlay();else $('status').textContent='ASC loaded. Now load .prj.';};
-  $('fileInput2').onchange=async e=>{const f=e.target.files[0];if(!f)return;S.prj=await f.text();if(S.asc)loadAndOverlay();else $('status').textContent='PRJ loaded. Now load .asc.';};
+$('loadAsc').onclick=()=>$('fileInput').click();
+$('loadPrj').onclick=()=>$('fileInput2').click();
+$('fileInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;S.asc=await f.text();if(S.prj)loadAndOverlay();else $('status').textContent='ASC loaded. Now load .prj.';};
+$('fileInput2').onchange=async e=>{const f=e.target.files[0];if(!f)return;S.prj=await f.text();if(S.asc)loadAndOverlay();else $('status').textContent='PRJ loaded. Now load .asc.';};
 
-  $('baseSel').onchange=e=>{
-    if(S.baseLayer)S.map.removeLayer(S.baseLayer);
-    const v=e.target.value;
-    if(v==='sat')S.baseLayer=buildBase('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}','Tiles © Esri');
-    else if(v==='osm')S.baseLayer=buildBase('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png','© OpenStreetMap');
-    else if(v==='topo')S.baseLayer=buildBase('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png','© OpenTopoMap');
-    else S.baseLayer=null;
-    if(S.baseLayer)S.baseLayer.addTo(S.map);
-    if(S.overlay)S.overlay.bringToFront();
-  };
-
-  $('colorSel').onchange=()=>{if(S.asc&&S.prj)loadAndOverlay()};
-  $('opacity').oninput=e=>{$('opVal').textContent=e.target.value+'%';if(S.overlay)S.overlay.setOpacity(e.target.value/100)};
-  $('fitBtn').onclick=()=>{if(S.bounds)S.map.fitBounds(S.bounds)};
-  $('closeBtn').onclick=()=>{$('panel').classList.add('hidden');$('toggle').style.display='block'};
-  $('toggle').onclick=()=>{$('panel').classList.remove('hidden');$('toggle').style.display='none'};
+$('baseSel').onchange=e=>{
+for(const k in TILES){if(map.getLayer('base-'+k))map.setLayoutProperty('base-'+k,'visibility',k===e.target.value?'visible':'none');}
+};
+$('colorSel').onchange=()=>{if(S.asc&&S.prj)loadAndOverlay()};
+$('opacity').oninput=e=>{$('opVal').textContent=e.target.value+'%';if(map.getLayer('dem'))map.setPaintProperty('dem','raster-opacity',e.target.value/100)};
+$('pitch').oninput=e=>{map.setPitch(parseFloat(e.target.value));$('pitchVal').textContent=e.target.value+'°'};
+$('bearing').oninput=e=>{map.setBearing(parseFloat(e.target.value));$('bearingVal').textContent=e.target.value+'°'};
+$('resetView').onclick=()=>{map.easeTo({pitch:0,bearing:0,duration:800});};
+$('fitBtn').onclick=()=>{if(S.bounds)map.fitBounds([[S.bounds[0],S.bounds[1]],[S.bounds[2],S.bounds[3]]],{padding:40,duration:900,pitch:60});};
 });
 </script>
 </body></html>
